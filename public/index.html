@@ -1,0 +1,1846 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="kd5Z0objYWJFrHcKSQNEVI">
+<head data-page-node-id="CN0PFpDUi3VPwyFYzVptZN">
+<meta charset="UTF-8" data-page-node-id="z6QvpEC3rksrD74TfRp0Hz">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" data-page-node-id="Oe6qfv09uklNiKjChewLHi">
+<title>3D 飞行棋</title>
+<style>
+  :root{
+    --bg0:#04060f; --bg1:#0a1024;
+    --panel:rgba(3,12,32,.60);
+    --line:rgba(137,190,255,.30);
+    --txt:#f4f8ff; --dim:#b2c3e6;
+    --p0:#ef4444; --p1:#22c55e; --p2:#e3cc6d; --p3:#3b82f6;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;}
+  body{
+    background:radial-gradient(120% 100% at 50% 0%, #0d1636 0%, var(--bg0) 62%);
+    color:var(--txt);
+    font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    user-select:none;
+  }
+  canvas{display:block;}
+  /* CSS 显示尺寸必须锁定到视口；canvas 的 width/height 属性只作为高 DPI
+     渲染缓冲区尺寸，否则 DPR=2 时画布会按 2 倍固有尺寸布局，只显示左上角。 */
+  #scene{position:fixed;inset:0;width:100%;height:100%;}
+
+  /* ---------- 通用面板 ---------- */
+  .glass{
+    background:var(--panel);
+    backdrop-filter:blur(18px) saturate(1.28); -webkit-backdrop-filter:blur(18px) saturate(1.28);
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.13),0 10px 34px rgba(0,0,0,.34);
+  }
+  .btn{
+    border:1px solid var(--line); background:rgba(122,174,255,.065);
+    color:var(--txt); border-radius:11px; padding:9px 16px;
+    font-size:14px; cursor:pointer; transition:.16s; font-family:inherit;
+  }
+  .btn:hover{background:rgba(142,195,255,.15); transform:translateY(-1px);}
+  .btn:active{transform:translateY(0);}
+  .btn.primary{
+    background:linear-gradient(135deg,#4f7cff,#7b5cff); border-color:transparent;
+    font-weight:700; letter-spacing:.5px;
+  }
+  .btn.primary:hover{filter:brightness(1.12);}
+
+  /* ---------- 顶部玩家条 ---------- */
+  #players{
+    position:fixed; top:14px; left:14px; display:flex; flex-direction:column; gap:8px;
+    z-index:20; max-width:min(46vw,300px);
+  }
+  .pcard{
+    display:flex; align-items:center; gap:9px; padding:8px 11px; border-radius:13px;
+    background:rgba(4,15,39,.58); border:1px solid rgba(143,196,255,.22);
+    backdrop-filter:blur(14px) saturate(1.25); transition:.2s; position:relative; overflow:hidden;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 7px 22px rgba(0,0,0,.28);
+  }
+  .pcard.active{
+    border-color:rgba(255,255,255,.5);
+    box-shadow:0 0 0 1px rgba(255,255,255,.16), 0 6px 22px rgba(0,0,0,.45);
+    transform:translateX(4px);
+  }
+  .pcard .dot{width:13px;height:13px;border-radius:50%;flex:none;box-shadow:0 0 9px currentColor;}
+  .pcard .nm{font-size:13px;font-weight:700;white-space:nowrap;}
+  .pcard .tag{
+    font-size:10px;padding:1px 6px;border-radius:6px;background:rgba(255,255,255,.1);
+    color:var(--dim);white-space:nowrap;
+  }
+  .pcard .progress{margin-left:auto;font-size:10px;color:#d8e5ff;white-space:nowrap;}
+  .pcard .planes{display:flex;gap:3px;}
+  .pip{width:11px;height:11px;border-radius:3px;transition:.25s;position:relative;}
+  .pip.base{background:transparent;border:1px solid currentColor;opacity:.42;}
+  .pip.track,.pip.home{background:currentColor;box-shadow:0 0 7px currentColor;}
+  .pip.done{background:currentColor;box-shadow:0 0 8px currentColor;}
+  .pip.done::after{content:'✓';position:absolute;inset:0;color:#07101f;font-size:9px;font-weight:1000;line-height:11px;text-align:center;}
+  .pcard .rank{
+    position:absolute;right:8px;top:50%;transform:translateY(-50%);
+    font-size:15px;font-weight:900;opacity:.9;
+  }
+
+  /* ---------- 右上控制区 ---------- */
+  #ctrl{position:fixed; top:14px; right:14px; z-index:20; display:flex; flex-direction:column; gap:10px; align-items:flex-end;}
+  #turnbar{padding:10px 14px; display:flex; align-items:center; gap:10px; font-size:14px; font-weight:700;}
+  #turnbar .sw{width:16px;height:16px;border-radius:5px;box-shadow:0 0 10px currentColor;}
+  #diceWrap{display:flex;gap:10px;align-items:center;}
+  #diceBtn{
+    width:132px;height:52px;font-size:17px;font-weight:800;border-radius:14px;
+    background:linear-gradient(135deg,#ff7a45,#ff3d6e); border:none; color:#fff;
+    box-shadow:0 8px 22px rgba(255,61,110,.35); letter-spacing:1px;
+  }
+  #diceBtn:disabled{opacity:.4;cursor:not-allowed;transform:none;filter:grayscale(.5);}
+  #diceBtn.pulse{animation:pulse 1.5s infinite;}
+  @keyframes pulse{0%,100%{box-shadow:0 8px 22px rgba(255,61,110,.35);}50%{box-shadow:0 8px 30px rgba(255,61,110,.7);}}
+  #diceFace{
+    width:52px;height:52px;border-radius:13px;background:rgba(255,255,255,.94);
+    display:flex;align-items:center;justify-content:center;font-size:26px;color:#1a1a2e;
+    font-weight:900; box-shadow:0 6px 18px rgba(0,0,0,.4);
+  }
+  #diceFace.rolling{animation:shake .18s infinite;}
+  @keyframes shake{0%,100%{transform:rotate(-7deg) scale(1);}50%{transform:rotate(7deg) scale(1.06);}}
+  .miniBtns{display:flex;gap:8px;}
+  #tools{position:fixed;bottom:14px;right:14px;z-index:20;display:flex;gap:8px;}
+  #hint{
+    position:fixed;right:14px;bottom:60px;z-index:20;
+    padding:8px 16px;border-radius:18px;font-size:13px;font-weight:500;
+    background:rgba(2,10,29,.72);backdrop-filter:blur(14px) saturate(1.25);border:1px solid var(--line);
+    color:var(--txt); box-shadow:0 6px 20px rgba(0,0,0,.45);
+    white-space:nowrap; transition:.2s; opacity:0; pointer-events:none;
+    max-width:46vw; overflow:hidden; text-overflow:ellipsis;
+  }
+  #hint.show{opacity:1;}
+
+  /* ---------- 设置 / 结果 遮罩 ---------- */
+  .overlay{
+    position:fixed;inset:0;z-index:60;display:flex;align-items:flex-start;justify-content:center;
+    background:rgba(2,8,24,.58); backdrop-filter:blur(10px) saturate(1.18); padding:20px; overflow:auto;
+  }
+  .overlay.hide{display:none;}
+  .sheet{width:min(560px,100%); padding:26px 28px; border-radius:22px;margin:auto 0;}
+  .sheet h1{margin:0 0 4px; font-size:27px; letter-spacing:1px;}
+  .sheet .sub{margin:0 0 20px; color:var(--dim); font-size:13px;}
+  .row{margin-bottom:16px;}
+  .row>label{display:block;font-size:12px;color:var(--dim);margin-bottom:8px;letter-spacing:1px;}
+  .seg{display:flex;gap:8px;flex-wrap:wrap;}
+  .seg button{
+    flex:1;min-width:70px;padding:11px 0;border-radius:11px;border:1px solid var(--line);
+    background:rgba(128,180,255,.055);color:var(--txt);cursor:pointer;font-size:14px;
+    font-weight:700;transition:.16s;font-family:inherit;
+  }
+  .seg button.on{background:linear-gradient(135deg,#4f7cff,#7b5cff);border-color:transparent;color:#fff;}
+  .seg button:hover:not(.on){background:rgba(143,197,255,.14);}
+  .seat{
+    display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:13px;
+    background:rgba(111,164,255,.055);margin-bottom:8px;border:1px solid rgba(142,194,255,.08);
+  }
+  .seat .cd{width:18px;height:18px;border-radius:6px;flex:none;box-shadow:0 0 10px currentColor;}
+  .seat .sn{font-size:14px;font-weight:700;width:52px;flex:none;}
+  .seat .seg button{padding:7px 0;font-size:13px;min-width:58px;}
+  .seat .seg{flex:1;}
+  .seat.off .cd{filter:grayscale(1);opacity:.38;box-shadow:none;}
+  .seat.off .sn{color:var(--dim);}
+  .seg button[data-mode="off"].on{background:rgba(120,130,155,.34);border-color:rgba(180,190,215,.28);}
+  #setupMsg{min-height:18px;margin:-2px 2px 8px;color:var(--dim);font-size:12px;}
+  #setupMsg.error{color:#ff9b9b;}
+  .start{width:100%;padding:14px;font-size:16px;margin-top:6px;}
+  .start:disabled{opacity:.42;cursor:not-allowed;transform:none;filter:grayscale(.4);}
+  .rules{
+    margin-top:16px;font-size:12px;color:var(--dim);line-height:1.85;
+    background:rgba(100,158,255,.055);padding:12px 14px;border-radius:12px;
+    border:1px solid rgba(142,194,255,.08);
+  }
+  .rules b{color:var(--txt);font-weight:700;}
+  .rules .k{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--dim);margin-right:7px;vertical-align:middle;}
+
+  /* 结果 */
+  #resultList{margin:14px 0 20px;}
+  .rrow{
+    display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;
+    background:rgba(105,164,255,.065);margin-bottom:8px;border:1px solid rgba(142,194,255,.08);
+  }
+  .rrow .no{font-size:19px;font-weight:900;width:30px;text-align:center;}
+  .rrow .cd{width:16px;height:16px;border-radius:5px;}
+  .rrow .nm{flex:1;font-weight:700;font-size:14px;}
+  .rrow .st{font-size:12px;color:var(--dim);}
+  #crown{font-size:38px;text-align:center;margin-bottom:2px;}
+
+  #loading{
+    position:fixed;inset:0;z-index:99;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:16px;background:#0b1020;
+  }
+  #loading .sp{
+    width:38px;height:38px;border:3px solid rgba(255,255,255,.15);
+    border-top-color:#7b5cff;border-radius:50%;animation:spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #loading p{color:var(--dim);font-size:13px;margin:0;}
+  #loading .err{color:#ff8a8a;max-width:420px;text-align:center;line-height:1.7;}
+
+  @media (max-width:720px){
+    #players{max-width:52vw;}
+    .pcard{padding:6px 8px;gap:6px;}
+    .pcard .nm{font-size:11px;}
+    #diceBtn{width:104px;height:46px;font-size:15px;}
+    #diceFace{width:46px;height:46px;font-size:23px;}
+    .sheet{padding:20px 18px;}
+    .seat{flex-wrap:wrap;}
+    .seat .sn{width:44px;font-size:13px;}
+  }
+</style>
+</head>
+<body data-page-node-id="F3ZQzoGz1qSnLgHFqvEqtm">
+
+<canvas id="scene" data-page-node-id="spC4r4EDzHsYhLTOp7BjeF"></canvas>
+
+<!-- 玩家列表 -->
+<div id="players" data-page-node-id="8w7hcfWktWKgmXLX0mfaSR"></div>
+
+<!-- 控制区 -->
+<div id="ctrl" data-page-node-id="sWdIX8kB2JwSgkyhHL7SVb">
+  <div id="turnbar" class="glass" data-page-node-id="yvxClIgcpRIx5Is21tc2L5"><span class="sw" id="turnSw" data-page-node-id="FzUo4NRxDnwmPuOCZEcVDG"></span><span id="turnTxt" data-page-node-id="cU2IEdb1D82yChfmiWlCaq">准备开始</span></div>
+  <div id="diceWrap" data-page-node-id="i2NdTuZPAmeHTa93d3pKQb">
+    <div id="diceFace" data-page-node-id="bqr2hvMrPAnzmE8mIQ6yte">–</div>
+    <button id="diceBtn" class="pulse" data-page-node-id="0aowGrRrFDqTSFVN3ZFCPe">掷骰子</button>
+  </div>
+  <div class="miniBtns" data-page-node-id="tSmx8TX3itHojxYnrnogoG">
+    <button class="btn" id="btnRestart" data-page-node-id="u3bcMLW3mogeDhsRU2pKvW">重开</button>
+  </div>
+</div>
+
+<div id="tools" data-page-node-id="1Msg7l5s5YXvsN1klb7ByF">
+  <button class="btn on" id="btnFollow" data-page-node-id="jOJYs4tXHOUZGy5CyDliOt">跟随:开</button>
+  <button class="btn" id="btnTopView" data-page-node-id="E5q30SSWGdL36mNQ4ldskA">俯视</button>
+  <button class="btn" id="btn3DView" data-page-node-id="cD1FSX5j33GWQr0DZFfLGb">斜视</button>
+</div>
+
+<div id="hint" data-page-node-id="1AbFGZp2CJLqHMXpha11cf"></div>
+
+<!-- 设置面板 -->
+<div id="setup" class="overlay" data-page-node-id="obhyTY74zz7RHie1XbRJl4">
+  <div class="sheet glass" data-page-node-id="qNtGrj4rFYtB3MGo6gRqcS">
+    <h1 data-page-node-id="73DpKQItf9HqFi7Jg1BZQI">✈️ 3D 飞行棋</h1>
+    <p class="sub" data-page-node-id="A6gUsaLLg9S1lhPXas4fzz">为每种颜色选择人类、电脑或关闭，至少开启两种颜色</p>
+
+    <div class="row" data-page-node-id="W5Kqq1l9HHc015kYhw4cNV">
+      <label data-page-node-id="T6GxFlB0odtwnpZI4bVoM9">座位设置</label>
+      <div id="seats" data-page-node-id="Y9edmHz5bmArDXBNN3SCCL"></div>
+    </div>
+    <div id="setupMsg" aria-live="polite"></div>
+
+    <div class="row" data-page-node-id="dRNbEAlXy24KbOvghhxoVl">
+      <label data-page-node-id="pck41rBKHMh1azzelBOyXd">调试选项</label>
+      <div class="seg" style="flex:0 0 auto;max-width:200px;" data-page-node-id="Ot6GRj4qA4mHaCzjjqC9CW">
+        <button id="btnTest" class="" data-page-node-id="jbMKNbn3HhjG23YEpx2hB8">TEST 首掷必为 6：关</button>
+      </div>
+    </div>
+
+    <button class="btn primary start" id="btnStart" data-page-node-id="HKWBvUzWYEQOLkrZFpdpu5">开始游戏</button>
+
+    <div class="rules" data-page-node-id="BvAXuGOBpbkhqkPFZCP86s">
+      <span class="k" data-page-node-id="RW6wh6RgvXUgG9rf4asewc"></span><b data-page-node-id="WBJefTE6V2W01uMfEfnG14">起飞</b>：掷出 6 点才能把一架飞机从基地送上跑道。<br data-page-node-id="cNt75eIltv63Ednr2QSTMn">
+      <span class="k" data-page-node-id="gKR8fQKjl4KG3YOy8Qun9u"></span><b data-page-node-id="UjBdUJUurDjCeklsjVWD2k">连掷</b>：掷出 6 点可追加一次投掷，连续三次 6 本回合作废。<br data-page-node-id="hYeEXeCDW8K2KsKgrpm32w">
+      <span class="k" data-page-node-id="0SQ9fcN8z9DerHyAJSNAyU"></span><b data-page-node-id="dpW9D0i8Zz4bkBeEzFVcHE">撞击</b>：落到有敌机的普通格，敌机全部被击落回基地。<br data-page-node-id="s6PJhV0UK56727k5c2jOaa">
+      <span class="k"></span><b>同色快进</b>：正常移动停在本色共享格时自动前进 4 格；起飞和本方归航入口不触发，快进不连锁。<br>
+      <span class="k"></span><b>快速穿越</b>：直接或经同色快进到达虚线箭头入口时，沿箭头飞到另一端；途中会击落所穿过归航道第四格内的敌机。<br>
+      <span class="k"></span><b>己方叠机</b>：己方飞机可以同格停留，但每架仍独立选择和移动。<br>
+      <span class="k" data-page-node-id="xp2fXdVxcToDqfpgB5Ztf1"></span><b data-page-node-id="klzLZYSJadkwx5tVH13e4j">抵达</b>：绕行一圈后进入己方彩色跑道；点数超过终点时，先到终点再按多余点数退回。<br data-page-node-id="SkRiC2MSEcY5TxVRWsvFrq">
+      <span class="k" data-page-node-id="xCXNceKm6EacldsfjJyNbT"></span><b data-page-node-id="CVoNxMrrFDX0rKh2zJ5aJu">胜利</b>：率先把 4 架飞机全部送入终点的玩家获胜。
+    </div>
+  </div>
+</div>
+
+<!-- 结果面板 -->
+<div id="result" class="overlay hide" data-page-node-id="yFm13LowaZL7XiBijNMZjQ">
+  <div class="sheet glass" data-page-node-id="x73ReZF6gz8Pfy7ZM4yg86">
+    <div id="crown" data-page-node-id="cnMCVMTm1wLXuDqxZCb9F2">🏆</div>
+    <h1 id="resultTitle" style="text-align:center;" data-page-node-id="hopEfUsFGlRFRixKli2bg7">游戏结束</h1>
+    <p class="sub" id="resultSub" style="text-align:center;" data-page-node-id="AIjN1MZGv3yKDPqEEA8PTm"></p>
+    <div id="resultList" data-page-node-id="1KOeGkOZItsVAdrru4L2Hp"></div>
+    <button class="btn primary start" id="btnAgain" data-page-node-id="LLKFrGzrdVu3px0y7wJ7yw">再来一局</button>
+    <button class="btn start" id="btnBackSetup" style="margin-top:8px;background:rgba(255,255,255,.07);" data-page-node-id="SjBGjp1hyPmOuBa0gxNdDt">返回设置</button>
+  </div>
+</div>
+
+<div id="loading" data-page-node-id="gBrMF9jGKVOgRYB6SAXCDc">
+  <div class="sp" id="spinner" data-page-node-id="VGdrUDK20o89V1iXJ4OKN2"></div>
+  <p id="loadTxt" data-page-node-id="8BYOt7lOf7bplKU5AdE7Hm">正在装载 3D 场景…</p>
+</div>
+
+<script type="module">
+/* =========================================================
+   3D 飞行棋 — Three.js 单文件实现
+   ========================================================= */
+
+let THREE;
+try {
+  THREE = await import('./vendor/three.module.js');
+} catch (e) {
+  try {
+    THREE = await import('https://unpkg.com/three@0.160.0/build/three.module.js');
+  } catch (e2) {
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('loadTxt').innerHTML =
+      '<div class="err">无法加载 three.js。<br>请通过本地服务器打开（推荐）：<br>' +
+      '<code>cd ' + '本目录' + ' &amp;&amp; python3 -m http.server 8080</code><br>' +
+      '然后访问 http://localhost:8080</div>';
+    throw e2;
+  }
+}
+
+/* ---------------- 常量：棋盘几何 ---------------- */
+const GRID = 15;          // 15x15
+const PATH_LEN = 52;      // 共享航道坐标总数（用于全局索引循环）
+const HOME_LEN = 6;       // 归航道格数
+const HOME_ENTRY_PROG = PATH_LEN - 2;  // 50：与本方归航道正对的共享航道入口
+const HOME_START_PROG = HOME_ENTRY_PROG + 1; // 51：归航道第一格
+const TOTAL = HOME_START_PROG + HOME_LEN - 1; // 56：归航道第 6 格（专属终点格）
+
+// 外圈路径（col,row），索引 0 为红方起点
+const PATH = [
+  [0,5],[1,5],[2,5],[3,5],[4,5],
+  [5,4],[5,3],[5,2],[5,1],[5,0],
+  [6,0],[7,0],[8,0],
+  [9,0],[9,1],[9,2],[9,3],[9,4],
+  [10,5],[11,5],[12,5],[13,5],[14,5],
+  [14,6],[14,7],[14,8],
+  [14,9],[13,9],[12,9],[11,9],[10,9],
+  [9,10],[9,11],[9,12],[9,13],[9,14],
+  [8,14],[7,14],[6,14],
+  [5,14],[5,13],[5,12],[5,11],[5,10],
+  [4,9],[3,9],[2,9],[1,9],[0,9],
+  [0,8],[0,7],[0,6]
+];
+
+const STARTS = [0, 13, 26, 39];
+
+const HOMES = [
+  [[1,7],[2,7],[3,7],[4,7],[5,7],[6,7]],
+  [[7,1],[7,2],[7,3],[7,4],[7,5],[7,6]],
+  [[13,7],[12,7],[11,7],[10,7],[9,7],[8,7]],
+  [[7,13],[7,12],[7,11],[7,10],[7,9],[7,8]]
+];
+
+// 5×5 基地左上角 (col,row)：左上 / 右上 / 右下 / 左下
+const BASE_SIZE = 5;
+const BASE_ORIGIN = [[0,0],[10,0],[10,10],[0,10]];
+// 基地内 4 个停机位（相对基地左上角）
+const BASE_SLOTS  = [[1.1,1.1],[2.9,1.1],[1.1,2.9],[2.9,2.9]];
+
+const PL = [
+  { key:'红方', hex:0xef4444, css:'#ef4444', deep:0xb91c1c },
+  { key:'绿方', hex:0x22c55e, css:'#22c55e', deep:0x15803d },
+  { key:'黄方', hex:0xe3cc6d, css:'#e3cc6d', deep:0xa88932 },
+  { key:'蓝方', hex:0x3b82f6, css:'#3b82f6', deep:0x1d4ed8 }
+];
+
+// 四色快速穿越统一发生在各自私人进度 18 → 30；途中横跨对面玩家归航道第四格。
+const FLIGHT_ENTRY_PROG = 18;
+const FLIGHT_EXIT_PROG = 30;
+const FLIGHT_CROSS_HOME_PROG = HOME_START_PROG + 3;
+const FLIGHT_ROUTES = PL.map((_, seat) => {
+  const crossedSeat = (seat + 2) % PL.length;
+  return {
+    seat,
+    entryProg: FLIGHT_ENTRY_PROG,
+    exitProg: FLIGHT_EXIT_PROG,
+    entryIndex: (STARTS[seat] + FLIGHT_ENTRY_PROG) % PATH_LEN,
+    exitIndex: (STARTS[seat] + FLIGHT_EXIT_PROG) % PATH_LEN,
+    crossedSeat,
+    crossedHomeProg: FLIGHT_CROSS_HOME_PROG,
+    crossCoord: HOMES[crossedSeat][3]
+  };
+});
+
+function flightRoute(seat) { return FLIGHT_ROUTES[seat]; }
+function isFlightEntry(prog) { return prog === FLIGHT_ENTRY_PROG; }
+
+/** 共享航道颜色：从正对红方归航道的 PATH[50] 起，顺时针循环红、绿、黄、蓝。 */
+function pathColor(globalIndex) {
+  const i = ((globalIndex % PATH_LEN) + PATH_LEN) % PATH_LEN;
+  return (i + 2) % PL.length;
+}
+
+/** 正常走骰后是否落在玩家本色共享格；起飞、归航道和折返不调用此判定。 */
+function isBoostLanding(seat, prog) {
+  return prog >= 0 && prog < HOME_START_PROG && prog !== HOME_ENTRY_PROG &&
+    pathColor(globalIdx(seat, prog)) === seat;
+}
+
+// 坐标换算：格 -> 世界
+const HALF = (GRID - 1) / 2;
+function gridToWorld(c, r, y = 0) { return new THREE.Vector3(c - HALF, y, r - HALF); }
+function globalIdx(playerIdx, prog) { return (STARTS[playerIdx] + prog) % PATH_LEN; }
+
+/** 棋子逻辑位置 -> 世界坐标 */
+function posToWorld(playerIdx, prog) {
+  if (prog < HOME_START_PROG) {
+    const g = PATH[globalIdx(playerIdx, prog)];
+    return gridToWorld(g[0], g[1]);
+  }
+  if (prog < TOTAL) {
+    const h = HOMES[playerIdx][prog - HOME_START_PROG];
+    return gridToWorld(h[0], h[1]);
+  }
+  return null; // 专属终点格由 finishWorld() 处理
+}
+function baseWorld(playerIdx, slot) {
+  const o = BASE_ORIGIN[playerIdx], s = BASE_SLOTS[slot];
+  return gridToWorld(o[0] + s[0], o[1] + s[1]);
+}
+/** 各色专属终点：归航道最后一格 */
+function finishWorld(playerIdx) {
+  const lastHome = HOMES[playerIdx][HOME_LEN - 1];
+  return gridToWorld(lastHome[0], lastHome[1], 0.02);
+}
+
+/* ---------------- 全局状态 ---------------- */
+const G = {
+  players: [],       // {seat, type:'human'|'ai', level:1|2, pieces:[], done:0, rank:0}
+  seats: [],         // 参与座位索引
+  turn: 0,           // seats 内的下标
+  dice: 0,
+  phase: 'setup',    // setup|idle|rolling|choosing|anim|over
+  sixStreak: 0,
+  finished: 0,       // 已完成的玩家数
+  pickable: [],      // 当前可选移动
+  meshes: [],        // 所有棋子 mesh（供 raycast）
+  busy: false,
+  testOpeningRoll: false // TEST MODE 只保证整局第一次掷骰为 6
+};
+
+/* ---------------- 场景搭建 ---------------- */
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+
+const scene = new THREE.Scene();
+const SPACE_BG = 0x04060f;                 // 深空底色
+scene.background = new THREE.Color(SPACE_BG);
+scene.fog = new THREE.Fog(SPACE_BG, 52, 120);
+
+const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 400);
+
+/* ===== 固定视角：45° 俯视 + 棋盘摆正 + 底部居中 ===== */
+const PITCH_45   = Math.PI / 4;      // 45° 俯角（视线与水平面夹角 45°）
+const THETA_FIX  = -Math.PI / 2;     // 正对棋盘，横平竖直不倾斜
+const SHIFT_RATIO = 0.06;            // 棋盘中心轻微下移到屏幕约 56% 高度处
+const SEAT_THETA = [-3 * Math.PI / 4, -Math.PI / 4, Math.PI / 4, 3 * Math.PI / 4];
+
+const camDef = { theta: THETA_FIX, phi: PITCH_45, dist: 22, cx: 0, cz: 0 };
+let cam = { ...camDef };
+let camTarget = { ...camDef };
+let follow = false;                  // 默认锁定固定视角，不跟随玩家
+let shiftPx = 0;                     // 视锥下移像素
+
+function nearestTheta(from, to) {
+  let t = to;
+  while (t - from > Math.PI)  t -= Math.PI * 2;
+  while (from - t > Math.PI)  t += Math.PI * 2;
+  return t;
+}
+/** 计算刚好装下整个棋盘（并留出底部偏移空间）的相机距离 */
+function fitDist(phi) {
+  const halfSpan = HALF + 1.25;                                  // 棋盘半宽 + 紧凑安全边距
+  const vTan = Math.tan(camera.fov * Math.PI / 360);
+  const nearDepth = halfSpan * Math.sin(phi);
+  // 不能只算平面投影尺寸：45° 透视下，棋盘近侧角点离相机更近、投影更大。
+  // dist 必须先补回这段深度，再按 viewOffset 留给棋盘下半部的空间求解。
+  const bottomRoom = Math.max(0.42, 1 - 2 * SHIFT_RATIO);
+  const needV = nearDepth + halfSpan * Math.cos(phi) / (vTan * bottomRoom);
+  const needH = nearDepth + halfSpan / (vTan * Math.max(0.46, camera.aspect));
+  return clamp(Math.max(needV, needH) * 1.02, 15, 58);
+}
+/** 固定摆正视角（默认） */
+function viewDefault() {
+  camTarget.theta = nearestTheta(cam.theta, THETA_FIX);
+  camTarget.phi   = PITCH_45;
+  camTarget.dist  = fitDist(PITCH_45);
+  camTarget.cx = 0; camTarget.cz = 0;
+}
+/** 顶部俯视（同样摆正 + 底部居中） */
+function viewTop() {
+  camTarget.theta = nearestTheta(cam.theta, THETA_FIX);
+  camTarget.phi   = 0.22;
+  camTarget.dist  = fitDist(0.22);
+  camTarget.cx = 0; camTarget.cz = 0;
+}
+/** 跟随模式（可选）：转到当前玩家一侧，仍保持 45° 俯角 */
+function focusSeat(seat) {
+  camTarget.theta = nearestTheta(cam.theta, SEAT_THETA[seat]);
+  camTarget.phi   = PITCH_45;
+  camTarget.dist  = fitDist(PITCH_45);
+  camTarget.cx = 0; camTarget.cz = 0;
+}
+
+function applyCam() {
+  const sp = Math.sin(cam.phi), cp = Math.cos(cam.phi);
+  camera.position.set(
+    cam.cx + cam.dist * sp * Math.cos(cam.theta),
+    cam.dist * cp,
+    cam.cz + cam.dist * sp * Math.sin(cam.theta)
+  );
+  camera.lookAt(cam.cx, 0, cam.cz);
+  camera.updateMatrixWorld(true);
+}
+applyCam();
+
+/* ================= 太空背景 ================= */
+function dotTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d');
+  const rg = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  rg.addColorStop(0.00, 'rgba(255,255,255,1)');
+  rg.addColorStop(0.30, 'rgba(255,255,255,0.9)');
+  rg.addColorStop(0.62, 'rgba(255,255,255,0.28)');
+  rg.addColorStop(1.00, 'rgba(255,255,255,0)');
+  x.fillStyle = rg; x.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const DOT_TEX = dotTexture();
+
+function starField(count, rMin, rMax, size, opacity) {
+  const pos = new Float32Array(count * 3), col = new Float32Array(count * 3);
+  const tint = [[1, 1, 1], [.76, .85, 1], [1, .95, .84], [1, .84, .90], [.82, 1, 1], [.9, .9, 1]];
+  for (let i = 0; i < count; i++) {
+    const u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2;
+    const s = Math.sqrt(Math.max(0, 1 - u * u));
+    const r = rMin + Math.random() * (rMax - rMin);
+    pos[i * 3] = r * s * Math.cos(th);
+    pos[i * 3 + 1] = r * u;
+    pos[i * 3 + 2] = r * s * Math.sin(th);
+    const t = tint[(Math.random() * tint.length) | 0];
+    const k = 0.42 + Math.random() * 0.58;
+    col[i * 3] = t[0] * k; col[i * 3 + 1] = t[1] * k; col[i * 3 + 2] = t[2] * k;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return new THREE.Points(geo, new THREE.PointsMaterial({
+    size, sizeAttenuation: true, vertexColors: true, map: DOT_TEX,
+    transparent: true, opacity, depthWrite: false, fog: false,
+    blending: THREE.AdditiveBlending
+  }));
+}
+
+const spaceGroup = new THREE.Group();
+(function buildSpace() {
+  // 深空渐变穹顶（顶暗、地平线泛蓝紫 + 星云斑）
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 512;
+  const cx = cv.getContext('2d');
+  const grad = cx.createLinearGradient(0, 0, 0, 512);
+  grad.addColorStop(0.00, '#01020a');
+  grad.addColorStop(0.26, '#04091c');
+  grad.addColorStop(0.50, '#0a1233');
+  grad.addColorStop(0.68, '#131d4a');
+  grad.addColorStop(0.82, '#0b1130');
+  grad.addColorStop(1.00, '#03050e');
+  cx.fillStyle = grad; cx.fillRect(0, 0, 256, 512);
+  const nebs = [
+    [ 60, 150, 130, 'rgba(88,64,205,0.30)'],
+    [190, 252, 165, 'rgba(22,116,182,0.26)'],
+    [ 35, 344, 120, 'rgba(158,44,148,0.20)'],
+    [215, 190,  95, 'rgba(38,168,196,0.18)'],
+    [130,  90, 110, 'rgba(110,60,190,0.16)']
+  ];
+  nebs.forEach(([x, y, r, col]) => {
+    const rg = cx.createRadialGradient(x, y, 0, x, y, r);
+    rg.addColorStop(0, col); rg.addColorStop(1, 'rgba(0,0,0,0)');
+    cx.fillStyle = rg; cx.beginPath(); cx.arc(x, y, r, 0, Math.PI * 2); cx.fill();
+  });
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(180, 48, 32),
+    new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false, depthWrite: false })
+  );
+  dome.renderOrder = -10;
+  spaceGroup.add(dome);
+
+  // 两层星空
+  const far  = starField(2600, 95, 168, 0.62, 0.85);
+  const near = starField(420, 58, 104, 1.45, 0.95);
+  spaceGroup.add(far, near);
+  spaceGroup.userData.spin = [far, near];
+
+  // 远处的行星 + 光晕
+  function planet(radius, color, emissive, pos, halo) {
+    const m = new THREE.Mesh(
+      new THREE.SphereGeometry(radius, 40, 28),
+      new THREE.MeshStandardMaterial({
+        color, emissive, emissiveIntensity: 0.55, roughness: 0.95, metalness: 0.0, fog: false
+      })
+    );
+    m.position.set(pos[0], pos[1], pos[2]);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: DOT_TEX, color: halo, transparent: true, opacity: 0.55,
+      depthWrite: false, fog: false, blending: THREE.AdditiveBlending
+    }));
+    glow.scale.setScalar(radius * 6.2);
+    glow.position.copy(m.position);
+    spaceGroup.add(m, glow);
+    return m;
+  }
+  planet(7.2, 0x2b4c96, 0x0d1c46, [-78, 46, -112], 0x4d7dff);
+  planet(3.4, 0x8a4a2c, 0x3a1608, [96, 30, -96], 0xff9b52);
+})();
+scene.add(spaceGroup);
+
+scene.add(new THREE.HemisphereLight(0xa8cfff, 0x050916, 0.40));
+const key = new THREE.DirectionalLight(0xffffff, 1.70);
+key.position.set(9, 18, 10);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.left = -13; key.shadow.camera.right = 13;
+key.shadow.camera.top = 13;   key.shadow.camera.bottom = -13;
+key.shadow.camera.near = 1;   key.shadow.camera.far = 48;
+key.shadow.bias = -0.0012;
+key.shadow.normalBias = 0.02;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x72b8ff, 0.68);
+rim.position.set(-11, 8, -9); scene.add(rim);
+
+/* ---- 棋盘纹理（Canvas 2D 绘制） ---- */
+function buildBoardTexture() {
+  const S = 2048, cs = S / GRID;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const x = cv.getContext('2d');
+
+  // 底板
+  x.fillStyle = '#edf5ff';
+  x.fillRect(0, 0, S, S);
+
+  const rr = (px, py, w, h, r) => {
+    x.beginPath();
+    x.moveTo(px + r, py);
+    x.arcTo(px + w, py, px + w, py + h, r);
+    x.arcTo(px + w, py + h, px, py + h, r);
+    x.arcTo(px, py + h, px, py, r);
+    x.arcTo(px, py, px + w, py, r);
+    x.closePath();
+  };
+  const cellRect = (c, r, inset = 0.09) => rr((c + inset) * cs, (r + inset) * cs, cs * (1 - 2 * inset), cs * (1 - 2 * inset), cs * 0.16);
+
+  // 棋盘外框
+  x.fillStyle = '#d5e4f5';
+  rr(4, 4, S - 8, S - 8, cs * 0.5); x.fill();
+  x.fillStyle = '#f8fbff';
+  rr(cs * 0.18, cs * 0.18, S - cs * 0.36, S - cs * 0.36, cs * 0.4); x.fill();
+
+  const hex = n => '#' + n.toString(16).padStart(6, '0');
+  const mixHex = (a, b, t) => {
+    const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+    const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+    const r = Math.round(ar + (br - ar) * t);
+    const g = Math.round(ag + (bg - ag) * t);
+    const bl = Math.round(ab + (bb - ab) * t);
+    return '#' + ((r << 16) | (g << 8) | bl).toString(16).padStart(6, '0');
+  };
+  const shade = (n, f) => {
+    const r = Math.max(0, Math.min(255, ((n >> 16) & 255) + 255 * f)) | 0;
+    const g = Math.max(0, Math.min(255, ((n >> 8) & 255) + 255 * f)) | 0;
+    const b = Math.max(0, Math.min(255, (n & 255) + 255 * f)) | 0;
+    return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+  };
+
+  // 中央圆盘只作下沉式装饰，先绘制，再让四个专属终点格覆盖在其上方。
+  const boardMid = S / 2;
+  x.save();
+  x.translate(boardMid, boardMid);
+  const hub = x.createRadialGradient(0, 0, cs * .12, 0, 0, cs * 1.38);
+  hub.addColorStop(0, '#26324d');
+  hub.addColorStop(.62, '#111827');
+  hub.addColorStop(1, '#080d19');
+  x.fillStyle = hub;
+  x.beginPath(); x.arc(0, 0, cs * 1.38, 0, Math.PI * 2); x.fill();
+  x.strokeStyle = 'rgba(148,180,255,.36)'; x.lineWidth = cs * .10; x.stroke();
+  x.restore();
+
+  // 归航道：第 6 格是本色专属终点，其余格只显示前进箭头。
+  for (let p = 0; p < 4; p++) {
+    HOMES[p].forEach((c2, i) => {
+      const isFinish = i === HOME_LEN - 1;
+      const g = x.createLinearGradient(c2[0] * cs, c2[1] * cs, (c2[0] + 1) * cs, (c2[1] + 1) * cs);
+      const yellowLane = p === 2;
+      g.addColorStop(0, isFinish ? '#101a31' : yellowLane ? '#f1d86f' : mixHex(PL[p].hex, 0xf8fbff, 0.12));
+      g.addColorStop(1, isFinish ? hex(PL[p].deep) : yellowLane ? '#cba83e' : mixHex(PL[p].hex, 0xdcecff, 0.32));
+      x.fillStyle = g;
+      cellRect(c2[0], c2[1], isFinish ? 0.015 : 0.03); x.fill();
+      x.strokeStyle = isFinish ? 'rgba(255,255,255,.98)' : 'rgba(255,255,255,.82)';
+      x.lineWidth = cs * (isFinish ? 0.075 : 0.03); x.stroke();
+
+      const px = (c2[0] + .5) * cs, py = (c2[1] + .5) * cs;
+      x.save();
+      x.translate(px, py);
+      if (isFinish) {
+        // 顶面 UV 会旋转 180°，终点文字预先反转以保持正向。
+        x.rotate(Math.PI);
+        x.fillStyle = '#ffffff';
+        x.font = '900 ' + (cs * .40) + 'px -apple-system, sans-serif';
+        x.textAlign = 'center'; x.textBaseline = 'middle';
+        x.fillText('终', 0, cs * .02);
+      } else {
+        x.rotate(Math.atan2(boardMid - py, boardMid - px));
+        x.strokeStyle = yellowLane ? 'rgba(82,58,8,.82)' : 'rgba(255,255,255,.88)';
+        x.lineWidth = cs * 0.075;
+        x.lineCap = 'round'; x.lineJoin = 'round';
+        x.beginPath();
+        x.moveTo(-cs * .12, -cs * .17);
+        x.lineTo(cs * .10, 0);
+        x.lineTo(-cs * .12, cs * .17);
+        x.stroke();
+      }
+      x.restore();
+    });
+  }
+
+  // 外圈路径格
+  PATH.forEach((c2, i) => {
+    const isStart = STARTS.includes(i);
+    const colorIndex = pathColor(i);
+    const tile = PL[colorIndex];
+    const yellowTile = colorIndex === 2;
+    const g = x.createLinearGradient(c2[0] * cs, c2[1] * cs, (c2[0] + 1) * cs, (c2[1] + 1) * cs);
+    g.addColorStop(0, yellowTile ? (isStart ? '#e5c956' : '#ffed8d') : mixHex(tile.hex, 0xf8fbff, isStart ? 0.12 : 0.34));
+    g.addColorStop(1, yellowTile ? (isStart ? '#c49c2e' : '#dfbd49') : mixHex(tile.hex, 0xdcecff, isStart ? 0.28 : 0.52));
+    x.fillStyle = g;
+    cellRect(c2[0], c2[1], 0.08); x.fill();
+    x.strokeStyle = isStart ? hex(tile.deep) : mixHex(tile.hex, 0x1b365b, 0.24);
+    x.lineWidth = cs * (isStart ? 0.055 : 0.035);
+    x.stroke();
+  });
+
+  // 快速穿越通道：同色虚线从入口指向出口，横跨对面归航道第四格。
+  FLIGHT_ROUTES.forEach(route => {
+    const a = PATH[route.entryIndex], b = PATH[route.exitIndex];
+    const ax = (a[0] + .5) * cs, ay = (a[1] + .5) * cs;
+    const bx = (b[0] + .5) * cs, by = (b[1] + .5) * cs;
+    const angle = Math.atan2(by - ay, bx - ax);
+    const dx = Math.cos(angle), dy = Math.sin(angle);
+    // 通道颜色表示实际使用者，而不是被横跨的归航道或端点公共格颜色。
+    const colorIndex = route.seat;
+    const lineColor = colorIndex === 2 ? '#d8c36e' : shade(PL[colorIndex].hex, 0.18);
+    const startX = ax + dx * cs * .24, startY = ay + dy * cs * .24;
+    const tipX = bx, tipY = by;
+    const shaftEndX = tipX - dx * cs * .34, shaftEndY = tipY - dy * cs * .34;
+    x.save();
+    x.lineCap = 'butt'; x.lineJoin = 'round';
+    x.shadowColor = 'rgba(255,255,255,.52)'; x.shadowBlur = cs * .065;
+    x.strokeStyle = lineColor; x.lineWidth = cs * .078;
+    x.setLineDash([cs * .20, cs * .17]);
+    x.lineDashOffset = -cs * .035;
+    x.beginPath(); x.moveTo(startX, startY); x.lineTo(shaftEndX, shaftEndY); x.stroke();
+    x.setLineDash([]); x.shadowBlur = 0;
+    x.fillStyle = lineColor;
+    x.beginPath();
+    x.moveTo(tipX, tipY);
+    x.lineTo(tipX - dx * cs * .34 - dy * cs * .18, tipY - dy * cs * .34 + dx * cs * .18);
+    x.lineTo(tipX - dx * cs * .34 + dy * cs * .18, tipY - dy * cs * .34 - dx * cs * .18);
+    x.closePath(); x.fill();
+    x.restore();
+  });
+
+  // 基地停机位图标。
+  const drawGlyph = (c, r, color, txt) => {
+    x.save();
+    x.translate((c + .5) * cs, (r + .5) * cs);
+    x.fillStyle = color;
+    x.font = 'bold ' + (cs * 0.5) + 'px -apple-system, sans-serif';
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText(txt, 0, cs * 0.02);
+    x.restore();
+  };
+
+  // 出生格仅标示共享航道前进方向，不再使用飞机字符或玩家色覆盖。
+  STARTS.forEach(si => {
+    const a = PATH[si], b = PATH[(si + 1) % PATH_LEN];
+    const angle = Math.atan2(b[1] - a[1], b[0] - a[0]);
+    const colorIndex = pathColor(si);
+    x.save();
+    x.translate((a[0] + .5) * cs, (a[1] + .5) * cs);
+    x.rotate(angle);
+    x.strokeStyle = colorIndex === 2 ? 'rgba(83,63,13,.76)' : 'rgba(255,255,255,.92)';
+    x.lineWidth = cs * .085; x.lineCap = 'round'; x.lineJoin = 'round';
+    x.beginPath();
+    x.moveTo(-cs * .22, 0); x.lineTo(cs * .20, 0);
+    x.moveTo(cs * .04, -cs * .16); x.lineTo(cs * .20, 0); x.lineTo(cs * .04, cs * .16);
+    x.stroke();
+    x.restore();
+  });
+
+  // 四个基地
+  for (let p = 0; p < 4; p++) {
+    const o = BASE_ORIGIN[p];
+    const px = o[0] * cs + cs * 0.18, py = o[1] * cs + cs * 0.18, w = cs * BASE_SIZE - cs * 0.36;
+    x.fillStyle = p === 2 ? '#e5cb5b' : mixHex(PL[p].hex, 0xe9f4ff, 0.22);
+    rr(px, py, w, w, cs * 0.55); x.fill();
+    x.strokeStyle = hex(PL[p].deep); x.lineWidth = cs * 0.07; x.stroke();
+    x.fillStyle = 'rgba(245,251,255,.42)';
+    rr(px + cs * 0.5, py + cs * 0.5, w - cs, w - cs, cs * 0.4); x.fill();
+    // 停机位
+    BASE_SLOTS.forEach(s => {
+      x.fillStyle = 'rgba(250,253,255,.90)';
+      x.beginPath(); x.arc((o[0] + s[0] + .5) * cs, (o[1] + s[1] + .5) * cs, cs * 0.62, 0, 7); x.fill();
+      x.strokeStyle = shade(PL[p].hex, -0.08); x.lineWidth = cs * 0.06; x.stroke();
+      drawGlyph(o[0] + s[0], o[1] + s[1] + 0.02, 'rgba(0,0,0,.16)', '✈');
+    });
+  }
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return tex;
+}
+
+const boardTex = buildBoardTexture();
+const board = new THREE.Mesh(
+  new THREE.BoxGeometry(GRID, 0.5, GRID),
+  [
+    new THREE.MeshStandardMaterial({ color: 0x2a3350, roughness: .9 }),
+    new THREE.MeshStandardMaterial({ color: 0x2a3350, roughness: .9 }),
+    new THREE.MeshPhysicalMaterial({
+      map: boardTex, roughness: .34, metalness: .0,
+      clearcoat: .58, clearcoatRoughness: .12
+    }),
+    new THREE.MeshStandardMaterial({ color: 0x1b2036, roughness: .9 }),
+    new THREE.MeshStandardMaterial({ color: 0x2a3350, roughness: .9 }),
+    new THREE.MeshStandardMaterial({ color: 0x2a3350, roughness: .9 })
+  ]
+);
+board.position.y = -0.25;
+board.receiveShadow = true;
+scene.add(board);
+
+// 棋盘上方独立的透明亚克力覆层：底图保持清晰，覆层只负责折射、高光与冷色边缘。
+const acrylicTop = new THREE.Mesh(
+  new THREE.BoxGeometry(GRID - 0.08, 0.055, GRID - 0.08),
+  new THREE.MeshPhysicalMaterial({
+    color: 0xdceeff,
+    roughness: 0.065,
+    metalness: 0,
+    transmission: 0.55,
+    thickness: 0.14,
+    ior: 1.46,
+    clearcoat: 1,
+    clearcoatRoughness: 0.035,
+    transparent: true,
+    opacity: 0.16,
+    depthWrite: false
+  })
+);
+acrylicTop.position.y = 0.035;
+acrylicTop.renderOrder = 2;
+scene.add(acrylicTop);
+
+const acrylicEdge = new THREE.LineSegments(
+  new THREE.EdgesGeometry(acrylicTop.geometry, 28),
+  new THREE.LineBasicMaterial({
+    color: 0x8fd8ff,
+    transparent: true,
+    opacity: 0.42,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  })
+);
+acrylicEdge.position.copy(acrylicTop.position);
+acrylicEdge.renderOrder = 3;
+scene.add(acrylicEdge);
+
+// 悬浮平台（太空站甲板）
+const table = new THREE.Mesh(
+  new THREE.CylinderGeometry(15.5, 15.2, 0.6, 64),
+  new THREE.MeshStandardMaterial({ color: 0x0a1024, roughness: .82, metalness: .35, emissive: 0x040814 })
+);
+table.position.y = -0.72; table.receiveShadow = true; scene.add(table);
+
+// 平台边缘光环
+const halo = new THREE.Mesh(
+  new THREE.RingGeometry(15.4, 16.4, 96),
+  new THREE.MeshBasicMaterial({ color: 0x4f7cff, transparent: true, opacity: .22, side: THREE.DoubleSide, depthWrite: false })
+);
+halo.rotation.x = -Math.PI / 2; halo.position.y = -0.44; scene.add(halo);
+
+/* ---------------- 棋子：小飞机 ---------------- */
+function makePlane(colorHex, deepHex) {
+  const g = new THREE.Group();
+  const body = new THREE.MeshPhysicalMaterial({
+    color: colorHex, roughness: .20, metalness: .12,
+    clearcoat: 1, clearcoatRoughness: .07
+  });
+  const dark = new THREE.MeshPhysicalMaterial({
+    color: deepHex, roughness: .27, metalness: .15,
+    clearcoat: .85, clearcoatRoughness: .10
+  });
+  const glass = new THREE.MeshPhysicalMaterial({
+    color: 0x102449, roughness: .08, metalness: .38,
+    clearcoat: 1, clearcoatRoughness: .025
+  });
+
+  const fus = new THREE.Mesh(new THREE.ConeGeometry(0.155, 0.66, 16), body);
+  fus.rotation.x = Math.PI / 2;      // 机头朝 +z
+  fus.position.z = 0.03;
+  g.add(fus);
+
+  const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.155, 0.34, 14), body);
+  tail.rotation.x = Math.PI / 2; tail.position.z = -0.30;
+  g.add(tail);
+
+  const wing = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.045, 0.20), body);
+  wing.position.set(0, -0.01, -0.02);
+  g.add(wing);
+
+  const wingTip = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.05, 0.13), dark);
+  wingTip.position.set(0.33, -0.01, -0.04); g.add(wingTip);
+  const wingTip2 = wingTip.clone(); wingTip2.position.x = -0.33; g.add(wingTip2);
+
+  const vfin = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.20, 0.17), dark);
+  vfin.position.set(0, 0.11, -0.36); g.add(vfin);
+
+  const hstab = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.04, 0.11), dark);
+  hstab.position.set(0, -0.02, -0.38); g.add(hstab);
+
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.085, 14, 12), glass);
+  dome.position.set(0, 0.085, -0.05);
+  dome.scale.set(1, 0.72, 1.25);
+  g.add(dome);
+
+  // 大球形点击命中区（不可见但可被 raycast）
+  const hit = new THREE.Mesh(
+    new THREE.SphereGeometry(0.45, 10, 8),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, depthTest: false })
+  );
+  hit.userData.isHitbox = true;
+  g.add(hit);
+
+  g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; } });
+  return g;
+}
+
+/* ---------------- 骰子 ---------------- */
+function diceFaceTexture(n) {
+  const S = 256, cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const x = cv.getContext('2d');
+  const g = x.createLinearGradient(0, 0, S, S);
+  g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#e8ecf6');
+  x.fillStyle = g; x.fillRect(0, 0, S, S);
+  x.strokeStyle = 'rgba(120,130,160,.35)'; x.lineWidth = 8;
+  x.strokeRect(10, 10, S - 20, S - 20);
+  const R = S * 0.085, u = S * 0.27;
+  const P = {
+    1: [[0, 0]],
+    2: [[-1, -1], [1, 1]],
+    3: [[-1, -1], [0, 0], [1, 1]],
+    4: [[-1, -1], [1, -1], [-1, 1], [1, 1]],
+    5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]],
+    6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]]
+  }[n];
+  x.fillStyle = n === 1 ? '#e0333f' : '#242c44';
+  P.forEach(p => {
+    x.beginPath(); x.arc(S / 2 + p[0] * u, S / 2 + p[1] * u, R, 0, 7); x.fill();
+  });
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+// BoxGeometry 材质顺序：+X,-X,+Y,-Y,+Z,-Z  =>  1,6,2,5,3,4
+const diceMats = [1, 6, 2, 5, 3, 4].map(n =>
+  new THREE.MeshStandardMaterial({ map: diceFaceTexture(n), roughness: .34, metalness: .05 })
+);
+const dice = new THREE.Mesh(new THREE.BoxGeometry(1.25, 1.25, 1.25), diceMats);
+dice.castShadow = true;
+dice.position.set(9.2, 0.63, 8.2);
+scene.add(dice);
+
+// 点数 N 朝上所需的欧拉角
+const FACE_ROT = {
+  1: [0, 0, Math.PI / 2],
+  6: [0, 0, -Math.PI / 2],
+  2: [0, 0, 0],
+  5: [Math.PI, 0, 0],
+  3: [-Math.PI / 2, 0, 0],
+  4: [Math.PI / 2, 0, 0]
+};
+
+/* 指示环 */
+const ring = new THREE.Mesh(
+  new THREE.TorusGeometry(0.36, 0.045, 10, 32),
+  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .9 })
+);
+ring.rotation.x = -Math.PI / 2; ring.visible = false; scene.add(ring);
+
+const targetMark = new THREE.Mesh(
+  new THREE.RingGeometry(0.30, 0.42, 28),
+  new THREE.MeshBasicMaterial({ color: 0x7bffcf, transparent: true, opacity: .85, side: THREE.DoubleSide })
+);
+targetMark.rotation.x = -Math.PI / 2; targetMark.visible = false; scene.add(targetMark);
+
+/* ---------------- 相机控制（自写轨道） ---------------- */
+(function controls() {
+  let dragging = false, lx = 0, ly = 0, pinch = 0;
+  const down = e => {
+    if (e.target !== canvas) return;
+    dragging = true;
+    const t = e.touches ? e.touches[0] : e;
+    lx = t.clientX; ly = t.clientY;
+    if (e.touches && e.touches.length === 2) pinch = dist(e.touches);
+  };
+  const dist = ts => Math.hypot(ts[0].clientX - ts[1].clientX, ts[0].clientY - ts[1].clientY);
+  const move = e => {
+    if (!dragging) return;
+    if (e.touches && e.touches.length === 2) {
+      const d = dist(e.touches);
+      camTarget.dist = clamp(camTarget.dist * (pinch / d), 12, 44);
+      pinch = d;
+    } else {
+      const t = e.touches ? e.touches[0] : e;
+      camTarget.theta -= (t.clientX - lx) * 0.006;
+      camTarget.phi = clamp(camTarget.phi - (t.clientY - ly) * 0.005, 0.16, 1.32);
+      lx = t.clientX; ly = t.clientY;
+    }
+  };
+  const up = () => { dragging = false; };
+  addEventListener('mousedown', down); addEventListener('mousemove', move); addEventListener('mouseup', up);
+  addEventListener('touchstart', down, { passive: true });
+  addEventListener('touchmove', move, { passive: true });
+  addEventListener('touchend', up);
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    camTarget.dist = clamp(camTarget.dist + e.deltaY * 0.02, 12, 44);
+  }, { passive: false });
+})();
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* ---------------- UI 引用 ---------------- */
+const el = id => document.getElementById(id);
+const ui = {
+  players: el('players'), turnSw: el('turnSw'), turnTxt: el('turnTxt'),
+  diceBtn: el('diceBtn'), diceFace: el('diceFace'), hint: el('hint'),
+  setup: el('setup'), seats: el('seats'), setupMsg: el('setupMsg'), result: el('result'),
+  resultList: el('resultList'), resultTitle: el('resultTitle'), resultSub: el('resultSub')
+};
+let hintTimer = 0;
+function hint(msg, ms = 2200) {
+  ui.hint.textContent = msg;
+  ui.hint.classList.add('show');
+  clearTimeout(hintTimer);
+  if (ms > 0) hintTimer = setTimeout(() => ui.hint.classList.remove('show'), ms);
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------------- 设置面板 ---------------- */
+let cfg = { types: ['human', 'ai', 'ai', 'off'], levels: [2, 2, 2, 2], test: false };
+let TESTMODE = false;
+
+function activeSeats() {
+  return [0, 1, 2, 3].filter(si => cfg.types[si] !== 'off');
+}
+
+function updateSetupValidity() {
+  const count = activeSeats().length;
+  const invalid = count < 2;
+  ui.setupMsg.textContent = invalid ? '请至少开启两种颜色才能开始游戏' : '当前已开启 ' + count + ' 种颜色';
+  ui.setupMsg.classList.toggle('error', invalid);
+  el('btnStart').disabled = invalid;
+}
+
+function renderSeats() {
+  ui.seats.innerHTML = '';
+  [0, 1, 2, 3].forEach(si => {
+    const selectedMode = cfg.types[si] === 'human' ? 'human' :
+      cfg.types[si] === 'off' ? 'off' : (cfg.levels[si] === 1 ? 'ai1' : 'ai2');
+    const d = document.createElement('div');
+    d.className = 'seat' + (cfg.types[si] === 'off' ? ' off' : '');
+    d.innerHTML =
+      '<span class="cd" style="background:' + PL[si].css + ';color:' + PL[si].css + '"></span>' +
+      '<span class="sn">' + PL[si].key + '</span>' +
+      '<div class="seg">' +
+      '<button data-mode="human" class="' + (selectedMode === 'human' ? 'on' : '') + '">👤 人类</button>' +
+      '<button data-mode="ai1" class="' + (selectedMode === 'ai1' ? 'on' : '') + '">简单电脑</button>' +
+      '<button data-mode="ai2" class="' + (selectedMode === 'ai2' ? 'on' : '') + '">聪明电脑</button>' +
+      '<button data-mode="off" class="' + (selectedMode === 'off' ? 'on' : '') + '">关闭</button>' +
+      '</div>';
+    d.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
+      const mode = b.dataset.mode;
+      if (mode === 'human') cfg.types[si] = 'human';
+      else if (mode === 'off') cfg.types[si] = 'off';
+      else {
+        cfg.types[si] = 'ai';
+        cfg.levels[si] = mode === 'ai1' ? 1 : 2;
+      }
+      renderSeats();
+    });
+    ui.seats.appendChild(d);
+  });
+  updateSetupValidity();
+}
+renderSeats();
+
+/* TEST MODE 开关 */
+el('btnTest').onclick = () => {
+  cfg.test = !cfg.test; TESTMODE = cfg.test;
+  el('btnTest').textContent = 'TEST 首掷必为 6：' + (TESTMODE ? '开' : '关');
+  el('btnTest').classList.toggle('on', TESTMODE);
+};
+
+/* URL 快捷参数：?t=h,o,a,o&l=2,2,2,2&auto=1&test=1（h=人类，a=电脑，o=关闭）。 */
+(function urlArgs() {
+  const q = new URLSearchParams(location.search);
+  const n = q.get('n');
+  const t = q.get('t');
+  const parseType = v => (v === 'h' || v === 'human') ? 'human' :
+    (v === 'o' || v === 'off' || v === 'x' || v === 'closed') ? 'off' : 'ai';
+  const tokens = t ? t.split(',') : [];
+  if (n && ['2', '3', '4'].includes(n) && tokens.length < 4 && !tokens.some(v => parseType(v) === 'off')) {
+    // 兼容旧链接：2 人仍使用红/黄对角席，3 人使用红/绿/黄。
+    const legacySeats = n === '2' ? [0, 2] : n === '3' ? [0, 1, 2] : [0, 1, 2, 3];
+    cfg.types = ['off', 'off', 'off', 'off'];
+    legacySeats.forEach((si, i) => { cfg.types[si] = tokens[i] ? parseType(tokens[i]) : (i === 0 ? 'human' : 'ai'); });
+  } else if (tokens.length) {
+    tokens.forEach((v, i) => { if (i < 4) cfg.types[i] = parseType(v); });
+  }
+  const lv = q.get('l');
+  if (lv) lv.split(',').forEach((v, i) => { if (i < 4) cfg.levels[i] = (+v === 1) ? 1 : 2; });
+  if (q.get('test') === '1') { cfg.test = true; TESTMODE = true; }
+  el('btnTest').textContent = 'TEST 首掷必为 6：' + (TESTMODE ? '开' : '关');
+  el('btnTest').classList.toggle('on', TESTMODE);
+  renderSeats();
+  if (q.get('auto') === '1') setTimeout(startGame, 500);
+})();
+
+/* ---------------- 开局 ---------------- */
+el('btnStart').onclick = () => startGame();
+el('btnRestart').onclick = () => { ui.setup.classList.remove('hide'); };
+el('btnAgain').onclick = () => { ui.result.classList.add('hide'); startGame(); };
+el('btnBackSetup').onclick = () => { ui.result.classList.add('hide'); ui.setup.classList.remove('hide'); };
+el('btnTopView').onclick = () => { setViewBtns('top'); viewTop(); };
+el('btn3DView').onclick  = () => { setViewBtns('tilt'); follow = false; viewDefault(); syncFollowBtn(); };
+el('btnFollow').onclick = () => {
+  follow = !follow;
+  syncFollowBtn();
+  if (follow) { setViewBtns(null); if (G.players.length) focusSeat(cur().seat); }
+  else viewDefault();
+};
+function syncFollowBtn() {
+  el('btnFollow').textContent = '跟随:' + (follow ? '开' : '关');
+  el('btnFollow').classList.toggle('on', follow);
+}
+function setViewBtns(which) {
+  el('btnTopView').classList.toggle('on', which === 'top');
+  el('btn3DView').classList.toggle('on', which === 'tilt');
+}
+syncFollowBtn(); setViewBtns('tilt');
+
+function startGame() {
+  const seats = activeSeats();
+  if (seats.length < 2) { updateSetupValidity(); return; }
+  viewDefault();                       // 固定 45° 摆正视角（棋盘底部居中）
+  ui.setup.classList.add('hide');
+  G.seats = seats;
+  G.players = G.seats.map(si => ({
+    seat: si, type: cfg.types[si], level: cfg.levels[si],
+    name: PL[si].key + (cfg.types[si] === 'ai' ? '(电脑)' : ''),
+    pieces: [0, 1, 2, 3].map(i => ({ id: i, st: 'base', prog: -1, slot: i, mesh: null })),
+    done: 0, rank: 0
+  }));
+  G.turn = 0; G.dice = 0; G.sixStreak = 0; G.finished = 0; G.pickable = [];
+  G.testOpeningRoll = TESTMODE;
+  G.phase = 'idle';
+
+  // 清场
+  G.meshes.forEach(m => scene.remove(m));
+  G.meshes = [];
+
+  G.players.forEach((p, pi) => {
+    p.pieces.forEach(pc => {
+      const m = makePlane(PL[p.seat].hex, PL[p.seat].deep);
+      const w = baseWorld(p.seat, pc.slot);
+      m.position.set(w.x, 0.30, w.z);
+      m.rotation.y = faceAngleToCenter(w);
+      m.userData = { pi, pid: pc.id };
+      scene.add(m); G.meshes.push(m);
+      pc.mesh = m;
+    });
+  });
+
+  renderPlayers();
+  updateTurnUI();
+  hint('游戏开始！' + cur().name + ' 先手');
+  nextStep();
+}
+
+function faceAngleToCenter(w) {
+  return Math.atan2(-w.x, -w.z);
+}
+
+/* ---------------- 玩家面板 ---------------- */
+function renderPlayers() {
+  ui.players.innerHTML = '';
+  G.players.forEach((p, i) => {
+    const c = PL[p.seat].css;
+    const d = document.createElement('div');
+    d.className = 'pcard' + (i === G.turn && G.phase !== 'over' ? ' active' : '');
+    d.style.color = c;
+    let pips = '';
+    p.pieces.forEach(pc => {
+      const stateName = pc.st === 'base' ? '基地' : pc.st === 'track' ? '外圈' : pc.st === 'home' ? '归航道' : '已到终点';
+      pips += '<i class="pip ' + pc.st + '" title="飞机 ' + (pc.id + 1) + '：' + stateName + '"></i>';
+    });
+    d.innerHTML =
+      '<span class="dot" style="background:' + c + '"></span>' +
+      '<span class="nm" style="color:var(--txt)">' + p.name + '</span>' +
+      '<span class="tag">' + (p.type === 'ai' ? (p.level === 2 ? '聪明' : '简单') : '你') + '</span>' +
+      '<span class="progress">已到 ' + p.done + '/4 · 剩 ' + (4 - p.done) + '</span>' +
+      '<span class="planes">' + pips + '</span>' +
+      (p.rank ? '<span class="rank">#' + p.rank + '</span>' : '');
+    ui.players.appendChild(d);
+  });
+}
+function updateTurnUI() {
+  if (G.phase === 'setup' || G.phase === 'over') return;
+  const p = cur();
+  ui.turnSw.style.background = PL[p.seat].css;
+  ui.turnSw.style.color = PL[p.seat].css;
+  ui.turnTxt.textContent = p.name + ' 的回合';
+  renderPlayers();
+}
+
+/* ---------------- 规则 ---------------- */
+const cur = () => G.players[G.turn];
+
+/** 某玩家某点数下的所有合法移动 */
+function legalMoves(p, dice) {
+  const out = [];
+  p.pieces.forEach(pc => {
+    if (pc.st === 'done') return;
+    if (pc.st === 'base') {
+      if (dice === 6) {
+        out.push({
+          pc, from: -1, landingTo: 0, to: 0, kind: 'launch',
+          hitStages: [previewHitStage(p, 0)]
+        });
+      }
+      return;
+    }
+    const rawTo = pc.prog + dice;
+    if (rawTo > TOTAL) {
+      const to = TOTAL - (rawTo - TOTAL);
+      const steps = [];
+      for (let s = pc.prog + 1; s <= TOTAL; s++) steps.push(s);
+      for (let s = TOTAL - 1; s >= to; s--) steps.push(s);
+      out.push({ pc, from: pc.prog, landingTo: to, to, rawTo, steps, kind: 'bounce', hitStages: [] });
+      return;
+    }
+    const landingTo = rawTo;
+    if (landingTo === TOTAL) {
+      out.push({ pc, from: pc.prog, landingTo, to: landingTo, kind: 'finish', hitStages: [] });
+      return;
+    }
+    if (landingTo >= HOME_START_PROG) {
+      out.push({ pc, from: pc.prog, landingTo, to: landingTo, kind: 'home', hitStages: [] });
+      return;
+    }
+
+    // 快速穿越入口优先于入口格本身的同色 +4。
+    const directFlight = isFlightEntry(landingTo);
+    const boost = !directFlight && isBoostLanding(p.seat, landingTo);
+    const boostTo = boost ? landingTo + 4 : landingTo;
+    const boostSteps = boost ? [landingTo + 1, landingTo + 2, landingTo + 3, landingTo + 4] : [];
+    const boostedFlight = boost && isFlightEntry(boostTo);
+    const flight = (directFlight || boostedFlight) ? flightRoute(p.seat) : null;
+    const to = flight ? flight.exitProg : boostTo;
+    const hitStages = [previewHitStage(p, landingTo)];
+    if (boost) hitStages.push(previewHitStage(p, boostTo));
+    if (flight) {
+      hitStages.push(previewFlightHitStage(p, flight));
+      hitStages.push(previewHitStage(p, flight.exitProg));
+    }
+    const kind = flight ? (boost ? 'boostFlight' : 'flight') : (boost ? 'boost' : 'move');
+    out.push({ pc, from: pc.prog, landingTo, to, kind, boostTo, boostSteps, flight, hitStages });
+  });
+  return out;
+}
+function enemiesAt(mySeat, g) {
+  const list = [];
+  G.players.forEach(p => {
+    if (p.seat === mySeat) return;
+    p.pieces.forEach(pc => {
+      if (pc.st === 'track' && globalIdx(p.seat, pc.prog) === g) list.push({ p, pc });
+    });
+  });
+  return list;
+}
+
+/** AI 预估用：计算某次共享航道落点可能撞到的敌机。 */
+function previewHitStage(p, prog) {
+  if (prog >= HOME_START_PROG) return { prog, hits: [] };
+  const g = globalIdx(p.seat, prog);
+  return { prog, hits: enemiesAt(p.seat, g) };
+}
+
+/** AI 预估用：快速穿越会击落对面玩家归航道第四格的全部飞机。 */
+function previewFlightHitStage(p, flight) {
+  const hits = [];
+  G.players.forEach(target => {
+    if (target.seat !== flight.crossedSeat || target.seat === p.seat) return;
+    target.pieces.forEach(pc => {
+      if (pc.st === 'home' && pc.prog === flight.crossedHomeProg) hits.push({ p: target, pc });
+    });
+  });
+  return { type: 'flightCross', prog: flight.crossedHomeProg, hits };
+}
+
+/* ---------------- 回合驱动 ---------------- */
+async function nextStep() {
+  if (G.phase === 'over') return;
+  const p = cur();
+  updateTurnUI();
+  if (follow) focusSeat(p.seat);
+  ui.diceBtn.disabled = true;
+  ui.diceBtn.classList.remove('pulse');
+
+  if (p.type === 'ai') {
+    hint(p.name + ' 正在思考…', 0);
+    await sleep(430 + Math.random() * 380);
+    doRoll();
+  } else {
+    ui.diceBtn.disabled = false;
+    ui.diceBtn.classList.add('pulse');
+    hint('轮到你了 — 点击「掷骰子」', 0);
+  }
+}
+
+ui.diceBtn.onclick = () => { if (!ui.diceBtn.disabled) doRoll(); };
+
+async function doRoll() {
+  if (G.busy) return;
+  const p = cur();
+  ui.diceBtn.disabled = true;
+  ui.diceBtn.classList.remove('pulse');
+  G.phase = 'rolling';
+
+  let value;
+  if (G.testOpeningRoll) {
+    value = 6;
+    G.testOpeningRoll = false;
+  } else {
+    value = 1 + Math.floor(Math.random() * 6);
+  }
+  G.dice = value;
+  ui.diceFace.classList.add('rolling');
+  await rollDice3D(value);
+  ui.diceFace.classList.remove('rolling');
+  ui.diceFace.textContent = value;
+
+  const moves = legalMoves(p, value);
+
+  if (moves.length === 0) {
+    hint(p.name + ' 掷出 ' + value + ' 点，无棋可走');
+    await sleep(760);
+    endTurn(value);
+    return;
+  }
+  if (moves.length === 1) {
+    await applyMove(p, moves[0]);
+    return;
+  }
+  // 多选
+  G.pickable = moves;
+  G.phase = 'choosing';
+  showPickIndicators(moves);
+  if (p.type === 'ai') {
+    await sleep(420 + Math.random() * 320);
+    const best = aiChoose(p, moves);
+    hidePickIndicators();
+    try { await applyMove(p, best); } catch (e) { console.error(e); G.phase='idle'; G.busy=false; }
+  } else {
+    hint('掷出 ' + value + ' 点 — 选择一架飞机（点 3D 模型或底部按钮）', 0);
+  }
+}
+
+/** 结算一次真实落点；所有共享航道格（含起飞格）均可撞击。 */
+async function resolveLanding(p, prog) {
+  if (prog >= HOME_START_PROG) return 0;
+  const g = globalIdx(p.seat, prog);
+  const enemies = enemiesAt(p.seat, g);
+  if (!enemies.length) return 0;
+  hint(p.name + ' 击落 ' + enemies.length + ' 架敌机！');
+  for (const e of enemies) await knockBack(e.p, e.pc);
+  return enemies.length;
+}
+
+/** 快速穿越中点结算：击落专属归航道第四格内的敌机。 */
+async function resolveFlightCrossing(p, flight) {
+  const stage = previewFlightHitStage(p, flight);
+  if (!stage.hits.length) return 0;
+  hint(p.name + ' 穿越归航道，击落 ' + stage.hits.length + ' 架敌机！');
+  await Promise.all(stage.hits.map(e => knockBack(e.p, e.pc)));
+  return stage.hits.length;
+}
+
+/** 执行移动 */
+async function applyMove(p, mv) {
+  G.phase = 'anim'; G.busy = true;
+  hidePickIndicators();
+  const pc = mv.pc;
+  let hitCount = 0;
+
+  if (mv.kind === 'launch') {
+    pc.st = 'track'; pc.prog = 0;
+    await hop(pc.mesh, baseWorld(p.seat, pc.slot), posToWorld(p.seat, 0), true);
+    hitCount += await resolveLanding(p, 0);
+  } else {
+    if (mv.kind === 'bounce') {
+      hint(p.name + ' 点数超过终点，折返 ' + (mv.rawTo - TOTAL) + ' 格');
+    }
+    const route = mv.steps || Array.from({ length: mv.landingTo - mv.from }, (_, i) => mv.from + i + 1);
+    for (const s of route) {
+      const isFin = s === TOTAL;
+      const w = isFin ? finishWorld(p.seat, p.done) : posToWorld(p.seat, s);
+      await hop(pc.mesh, pc.mesh.position.clone(), w, isFin);
+      pc.prog = s;
+      pc.st = s >= HOME_START_PROG ? 'home' : 'track';
+    }
+
+    hitCount += await resolveLanding(p, mv.landingTo);
+
+    if (mv.boostSteps && mv.boostSteps.length) {
+      hint(p.name + ' 落在本色格，自动快进 4 格！');
+      for (const s of mv.boostSteps) {
+        const w = posToWorld(p.seat, s);
+        await hop(pc.mesh, pc.mesh.position.clone(), w, false);
+        pc.prog = s;
+        pc.st = s >= HOME_START_PROG ? 'home' : 'track';
+      }
+      hitCount += await resolveLanding(p, mv.boostTo);
+    }
+
+    if (mv.flight) {
+      hint(p.name + ' 进入快速通道，穿越归航道！');
+      const route = mv.flight;
+      const via = gridToWorld(route.crossCoord[0], route.crossCoord[1]);
+      const exit = posToWorld(p.seat, route.exitProg);
+      hitCount += await flyShortcut(
+        pc.mesh,
+        pc.mesh.position.clone(),
+        via,
+        exit,
+        () => resolveFlightCrossing(p, route)
+      );
+      pc.prog = route.exitProg;
+      pc.st = 'track';
+      hitCount += await resolveLanding(p, route.exitProg);
+    }
+  }
+
+  // 到达终点
+  if (mv.to >= TOTAL) {
+    pc.st = 'done'; pc.prog = TOTAL; p.done++;
+    // 抵达动画落在本色终点格，随后收起模型，避免多架飞机遮住终点标记。
+    pc.mesh.visible = false;
+    hint(p.name + ' 一架飞机抵达终点 ✈');
+    if (p.done === 4) {
+      p.rank = ++G.finished;
+      renderPlayers();
+      await sleep(560);
+      checkGameOver();
+      layoutStacks(); renderPlayers();
+      if (G.phase === 'over') { G.busy = false; return; }
+    }
+  }
+
+  layoutStacks();
+  renderPlayers();
+  G.busy = false;
+
+  await sleep(hitCount ? 620 : 260);
+  endTurn(G.dice);
+}
+
+function endTurn(dice) {
+  if (G.phase === 'over') return;
+  if (dice === 6 && G.sixStreak < 2) {
+    G.sixStreak++;
+    hint(cur().name + ' 掷出 6 点，再来一次！');
+    nextStep();
+    return;
+  }
+  G.sixStreak = 0;
+  G.turn = (G.turn + 1) % G.players.length;
+  nextStep();
+}
+
+function checkGameOver() {
+  const remain = G.players.filter(p => !p.rank);
+  if (remain.length <= (G.players.length > 1 ? 1 : 0)) {
+    // 给剩余玩家排名
+    G.players.forEach(p => { if (!p.rank) p.rank = ++G.finished; });
+    G.phase = 'over';
+    showResult();
+  }
+}
+
+function showResult() {
+  const sorted = [...G.players].sort((a, b) => a.rank - b.rank);
+  const w = sorted[0];
+  ui.resultTitle.textContent = w.name + ' 获胜！';
+  ui.resultSub.textContent = '全部 ' + G.players.length + ' 名玩家已分出名次';
+  const medals = ['🥇', '🥈', '🥉', '4️⃣'];
+  ui.resultList.innerHTML = sorted.map((p, i) =>
+    '<div class="rrow">' +
+    '<span class="no">' + medals[i] + '</span>' +
+    '<span class="cd" style="background:' + PL[p.seat].css + ';box-shadow:0 0 9px ' + PL[p.seat].css + '"></span>' +
+    '<span class="nm">' + p.name + '</span>' +
+    '<span class="st">抵达 ' + p.done + '/4</span>' +
+    '</div>'
+  ).join('');
+  ui.result.classList.remove('hide');
+}
+
+/* ---------------- AI ---------------- */
+function aiChoose(p, moves) {
+  if (p.level === 1) return moves[Math.floor(Math.random() * moves.length)];
+
+  // 聪明电脑硬优先级：精确抵达高于一切其他收益。
+  const finishes = moves.filter(mv => mv.kind === 'finish');
+  if (finishes.length) return finishes[Math.floor(Math.random() * finishes.length)];
+
+  // 已有飞机进入归航道时，若基地或共享航道仍有合法动作，优先推进外部飞机，
+  // 避免在归航道内因非最佳点数反复前进、折返。
+  let candidates = moves;
+  if (p.pieces.some(pc => pc.st === 'home')) {
+    const outside = moves.filter(mv => mv.pc.st === 'base' || mv.pc.st === 'track');
+    if (outside.length) candidates = outside;
+  }
+
+  let best = candidates[0], bestScore = -1e9;
+  for (const mv of candidates) {
+    let s = 0;
+    if (mv.kind === 'launch') s += 34;
+    if (mv.kind === 'finish') s += 95;
+    if (mv.flight) s += 42;
+    if (mv.to >= HOME_START_PROG && mv.to < TOTAL) s += 26 + (mv.to - HOME_START_PROG) * 2;
+    for (const stage of (mv.hitStages || [])) {
+      if (!stage.hits.length) continue;
+      s += 100;
+      stage.hits.forEach(e => { s += e.pc.prog * 0.35; });
+    }
+    // 评估最终落点威胁与离开原位置的收益
+    if (mv.to < HOME_START_PROG) {
+      const g = globalIdx(p.seat, mv.to);
+      s -= threatAt(p.seat, g) * 22;
+      if (mv.from >= 0 && mv.from < HOME_START_PROG) {
+        const gf = globalIdx(p.seat, mv.from);
+        s += threatAt(p.seat, gf) * 16; // 逃离危险
+      }
+    }
+    s += mv.to * 0.45;
+    if (mv.from >= HOME_START_PROG) s += 6;      // 已在归航道，稳
+    if (mv.to >= HOME_START_PROG) s += 12;
+    s += Math.random() * 5;
+    if (s > bestScore) { bestScore = s; best = mv; }
+  }
+  return best;
+}
+/** 落在 g 上有多少敌机能在 1-6 步内打到 */
+function threatAt(mySeat, g) {
+  let n = 0;
+  G.players.forEach(p => {
+    if (p.seat === mySeat) return;
+    p.pieces.forEach(pc => {
+      if (pc.st !== 'track') return;
+      const d = (g - globalIdx(p.seat, pc.prog) + PATH_LEN * 2) % PATH_LEN;
+      if (d >= 1 && d <= 6) n++;
+    });
+  });
+  return n;
+}
+
+/* ---------------- 动画 ---------------- */
+function hop(mesh, from, to, big) {
+  return new Promise(res => {
+    const dur = big ? 420 : 125;
+    const t0 = performance.now();
+    const h = big ? 1.5 : 0.55;
+    const dir = new THREE.Vector3().subVectors(to, from);
+    if (dir.lengthSq() > 1e-6) mesh.rotation.y = Math.atan2(dir.x, dir.z);
+    const tick = () => {
+      const k = Math.min(1, (performance.now() - t0) / dur);
+      const e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      mesh.position.x = from.x + (to.x - from.x) * e;
+      mesh.position.z = from.z + (to.z - from.z) * e;
+      mesh.position.y = 0.30 + Math.sin(Math.PI * e) * h;
+      mesh.rotation.z = Math.sin(Math.PI * e) * (big ? 0.5 : 0.22);
+      if (k < 1) requestAnimationFrame(tick);
+      else { mesh.position.set(to.x, 0.30, to.z); mesh.rotation.z = 0; res(); }
+    };
+    tick();
+  });
+}
+
+/** 沿虚线通道连续飞越；到达线路中点时并行触发归航道撞击。 */
+function flyShortcut(mesh, from, via, to, onCross) {
+  return new Promise((res, rej) => {
+    const dur = 760;
+    const t0 = performance.now();
+    let crossed = false;
+    let crossPromise = Promise.resolve(0);
+    const dir = new THREE.Vector3().subVectors(to, from);
+    if (dir.lengthSq() > 1e-6) mesh.rotation.y = Math.atan2(dir.x, dir.z);
+    const tick = () => {
+      const k = Math.min(1, (performance.now() - t0) / dur);
+      const e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      const inv = 1 - e;
+      mesh.position.x = inv * inv * from.x + 2 * inv * e * via.x + e * e * to.x;
+      mesh.position.z = inv * inv * from.z + 2 * inv * e * via.z + e * e * to.z;
+      mesh.position.y = 0.30 + Math.sin(Math.PI * e) * 2.55;
+      mesh.rotation.z = Math.sin(Math.PI * e) * 0.58;
+      if (!crossed && e >= .5) {
+        crossed = true;
+        try { crossPromise = Promise.resolve(onCross ? onCross() : 0); }
+        catch (err) { crossPromise = Promise.reject(err); }
+      }
+      if (k < 1) requestAnimationFrame(tick);
+      else {
+        mesh.position.set(to.x, 0.30, to.z);
+        mesh.rotation.z = 0;
+        crossPromise.then(res, rej);
+      }
+    };
+    tick();
+  });
+}
+async function knockBack(p, pc) {
+  const dest = baseWorld(p.seat, pc.slot);
+  await hop(pc.mesh, pc.mesh.position.clone(), dest, true);
+  pc.st = 'base'; pc.prog = -1;
+  pc.mesh.rotation.y = faceAngleToCenter(dest);
+}
+async function flyToFinish(mesh, to) {
+  await hop(mesh, mesh.position.clone(), to, true);
+  mesh.rotation.y = Math.atan2(-to.x, -to.z);
+}
+
+function rollDice3D(value) {
+  return new Promise(res => {
+    const t0 = performance.now();
+    const dur = 900;
+    const tq = new THREE.Quaternion().setFromEuler(new THREE.Euler(...FACE_ROT[value]));
+    const startPos = dice.position.clone();
+    const tick = () => {
+      const k = Math.min(1, (performance.now() - t0) / dur);
+      if (k < 0.72) {
+        dice.rotation.x += 0.34; dice.rotation.y += 0.27; dice.rotation.z += 0.19;
+        dice.position.y = 0.63 + Math.sin(k / 0.72 * Math.PI) * 2.4;
+      } else {
+        const kk = (k - 0.72) / 0.28;
+        const e = 1 - Math.pow(1 - kk, 3);
+        dice.quaternion.slerp(tq, Math.max(0.06, e * 0.34));
+        dice.position.y = 0.63 + (1 - e) * 0.9;
+      }
+      if (k < 1) requestAnimationFrame(tick);
+      else { dice.quaternion.copy(tq); dice.position.copy(startPos); res(); }
+    };
+    tick();
+  });
+}
+
+/* ---------------- 高亮 / 叠放 ---------------- */
+const pickRings = [];
+const pickPanel  = { el: null };
+
+function buildPickPanel() {
+  const p = document.createElement('div');
+  p.id = 'pickPanel';
+  // 靠右下角，避免遮挡贴在屏幕底部的棋盘近端（棋盘现在底部居中）
+  p.style.cssText = 'position:fixed;right:14px;bottom:106px;z-index:25;'
+    + 'display:none;gap:10px;padding:9px 14px;border-radius:16px;'
+    + 'background:rgba(12,18,36,.92);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(10px);';
+  document.body.appendChild(p);
+  pickPanel.el = p;
+}
+buildPickPanel();
+
+function showPickIndicators(moves) {
+  hidePickIndicators();
+  moves.forEach((mv, i) => {
+    const m = mv.pc.mesh;
+    m.userData.pick = true;
+    m.scale.setScalar(1.18);
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.42, 0.58, 32),
+      new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: .85, side: THREE.DoubleSide })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(m.position.x, 0.09, m.position.z);
+    ring.userData.kind = 'pick';
+    scene.add(ring);
+    pickRings.push(ring);
+  });
+  // 底部按钮面板（人类玩家也能靠它移动）
+  const p = pickPanel.el;
+  p.innerHTML = '';
+  if (cur().type === 'human') {
+    moves.forEach(mv => {
+      const b = document.createElement('button');
+      const col = PL[cur().seat].css;
+      b.style.cssText = 'background:' + col + ';color:#fff;border:0;border-radius:50%;width:40px;height:40px;'
+        + 'font-size:18px;cursor:pointer;box-shadow:0 0 14px ' + col + ';font-weight:900;';
+      b.textContent = '✈';
+      const moveText = mv.kind === 'launch' ? ' 起飞'
+        : mv.kind === 'bounce' ? ' 到终点后折返至 ' + mv.to
+        : mv.kind === 'boostFlight' ? ' 同色快进后快速穿越至 ' + mv.to
+        : mv.kind === 'flight' ? ' 快速穿越至 ' + mv.to
+        : mv.kind === 'boost' ? ' 落本色格并快进至 ' + mv.to
+        : ' → 步 ' + mv.to;
+      b.title = '飞机 #' + (mv.pc.id + 1) + moveText;
+      b.onmouseenter = () => { mv.pc.mesh.scale.setScalar(1.32); };
+      b.onmouseleave = () => { mv.pc.mesh.scale.setScalar(1.18); };
+      b.onclick = () => {
+        hidePickIndicators();
+        try { applyMove(cur(), mv); }
+        catch (e) { console.error(e); G.phase = 'choosing'; G.busy = false; G.pickable = moves; showPickIndicators(moves); }
+      };
+      p.appendChild(b);
+    });
+    p.style.display = 'flex';
+  }
+}
+function hidePickIndicators() {
+  G.meshes.forEach(m => { m.userData.pick = false; m.scale.setScalar(1); });
+  pickRings.forEach(r => scene.remove(r));
+  pickRings.length = 0;
+  ring.visible = false;
+  targetMark.visible = false;
+  if (pickPanel.el) { pickPanel.el.style.display = 'none'; pickPanel.el.innerHTML = ''; }
+}
+/** 同格棋子轻微散开 */
+function layoutStacks() {
+  const map = new Map();
+  G.players.forEach(p => p.pieces.forEach(pc => {
+    if (pc.st === 'base' || pc.st === 'done') return;
+    let w;
+    if (pc.st === 'track') w = posToWorld(p.seat, pc.prog);
+    else if (pc.st === 'home' && pc.prog < TOTAL) w = posToWorld(p.seat, pc.prog);
+    else return;
+    const k = Math.round(w.x * 4) + ',' + Math.round(w.z * 4);
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push({ pc, w });
+  }));
+  map.forEach(arr => {
+    arr.forEach((it, i) => {
+      if (arr.length === 1) { it.pc.mesh.position.set(it.w.x, 0.30, it.w.z); return; }
+      const a = (i / arr.length) * Math.PI * 2, r = 0.19;
+      it.pc.mesh.position.set(it.w.x + Math.cos(a) * r, 0.30, it.w.z + Math.sin(a) * r);
+    });
+  });
+  G.meshes.forEach(m => m.updateMatrixWorld(true));
+}
+
+/* ---------------- 拾取 ---------------- */
+const ray = new THREE.Raycaster();
+const ptr = new THREE.Vector2();
+let downPos = null;
+function findPieceRoot(o) { while (o && o.userData.pid === undefined) o = o.parent; return o; }
+canvas.addEventListener('pointerdown', e => { downPos = { x: e.clientX, y: e.clientY }; });
+canvas.addEventListener('pointerup', e => {
+  if (!downPos) return;
+  const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+  downPos = null;
+  if (moved > 6) return;                 // 拖拽视角，不算点击
+  if (G.phase !== 'choosing') return;
+  if (cur().type !== 'human') return;
+  ptr.x = (e.clientX / innerWidth) * 2 - 1;
+  ptr.y = -(e.clientY / innerHeight) * 2 + 1;
+  // 关键：raycast 之前把 camera 与所有飞机的 worldMatrix 强制更新一次
+  camera.updateMatrixWorld(true);
+  G.meshes.forEach(m => m.updateMatrixWorld(true));
+  ray.setFromCamera(ptr, camera);
+  const hits = ray.intersectObjects(G.meshes, true);
+  if (!hits.length) return;
+  const root = findPieceRoot(hits[0].object);
+  if (!root || !root.userData.pick) return;
+  const mv = G.pickable.find(m => m.pc.mesh === root);
+  if (mv) {
+    G.pickable = [];
+    try { applyMove(cur(), mv); }
+    catch (err) { console.error('[applyMove]', err); G.phase = 'choosing'; G.busy = false; showPickIndicators(G.pickable); }
+  }
+});
+// 悬停显示落点预测
+canvas.addEventListener('pointermove', e => {
+  if (G.phase !== 'choosing' || cur().type !== 'human') { ring.visible = false; targetMark.visible = false; return; }
+  ptr.x = (e.clientX / innerWidth) * 2 - 1;
+  ptr.y = -(e.clientY / innerHeight) * 2 + 1;
+  camera.updateMatrixWorld(true);
+  G.meshes.forEach(m => m.updateMatrixWorld(true));
+  ray.setFromCamera(ptr, camera);
+  const hits = ray.intersectObjects(G.meshes, true);
+  if (!hits.length) { ring.visible = false; targetMark.visible = false; return; }
+  const root = findPieceRoot(hits[0].object);
+  if (!root || !root.userData.pick) { ring.visible = false; targetMark.visible = false; return; }
+  const mv = G.pickable.find(m => m.pc.mesh === root);
+  if (!mv) { ring.visible = false; targetMark.visible = false; return; }
+  ring.position.set(root.position.x, 0.06, root.position.z);
+  ring.visible = true;
+  const t = mv.to >= TOTAL ? finishWorld(cur().seat, cur().done) : posToWorld(cur().seat, mv.to);
+  if (t) { targetMark.position.set(t.x, 0.07, t.z); targetMark.visible = true; }
+});
+
+/* ---------------- 主循环 ---------------- */
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  // 视锥向上偏移 → 棋盘整体落到屏幕靠底部、水平居中
+  shiftPx = Math.round(h * SHIFT_RATIO);
+  camera.setViewOffset(w, h, 0, -shiftPx, w, h);
+  camTarget.dist = fitDist(camTarget.phi);
+  if (!G.players.length) cam.dist = camTarget.dist;   // 未开局时首帧直接到位
+}
+addEventListener('resize', resize);
+resize();
+
+let ringT = 0;
+function loop(now) {
+  requestAnimationFrame(loop);
+  // 相机阻尼
+  cam.theta += (camTarget.theta - cam.theta) * 0.12;
+  cam.phi += (camTarget.phi - cam.phi) * 0.12;
+  cam.dist += (camTarget.dist - cam.dist) * 0.10;
+  applyCam();
+
+  ringT += 0.016;
+  if (ring.visible) ring.scale.setScalar(1 + Math.sin(ringT * 5) * 0.09);
+  if (targetMark.visible) targetMark.scale.setScalar(1 + Math.sin(ringT * 6) * 0.10);
+  for (let i = 0; i < pickRings.length; i++) {
+    const r = pickRings[i];
+    r.scale.setScalar(1 + Math.sin(ringT * 4 + i) * 0.18);
+    r.material.opacity = .6 + Math.sin(ringT * 4 + i) * .3;
+  }
+  dice.rotation.y += 0.0016;
+  // 星空缓慢自转 + 平台光环呼吸
+  spaceGroup.userData.spin.forEach((p, i) => { p.rotation.y += (i ? 0.00013 : 0.00007); });
+  halo.material.opacity = 0.10 + Math.sin(ringT * 1.6) * 0.05;
+
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(loop);
+
+// 首帧后隐藏 loading
+setTimeout(() => {
+  const l = el('loading');
+  l.style.transition = 'opacity .5s';
+  l.style.opacity = '0';
+  setTimeout(() => l.style.display = 'none', 520);
+}, 320);
+</script>
+</body>
+</html>
