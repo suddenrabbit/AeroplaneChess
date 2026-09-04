@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">RabbitPlaneChess</title>
+  <desc id="desc">深蓝底上的白兔与蓝色飞机，四色棋格代表飞行棋。</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1">
+      <stop stop-color="#263b70"/><stop offset="1" stop-color="#101a36"/>
+    </linearGradient>
+    <linearGradient id="rabbit" x2="0.7" y2="1">
+      <stop stop-color="#ffffff"/><stop offset="1" stop-color="#dbedff"/>
+    </linearGradient>
+    <linearGradient id="plane" x2="1" y2="1">
+      <stop stop-color="#67e8f9"/><stop offset="1" stop-color="#4695ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="14" y="14" width="484" height="484" rx="100" fill="none" stroke="#9ac8ff" stroke-opacity=".18" stroke-width="2"/>
+  <!-- The mascot stays inside the central 80% for small-size clarity. -->
+  <g fill="url(#rabbit)">
+    <ellipse cx="210" cy="180" rx="35" ry="86" transform="rotate(-17 210 180)"/>
+    <ellipse cx="299" cy="177" rx="35" ry="87" transform="rotate(15 299 177)"/>
+    <ellipse cx="255" cy="287" rx="107" ry="91"/>
+  </g>
+  <path d="M196 131L216 207M310 128L290 205" stroke="#a4c8f0" stroke-width="13" stroke-linecap="round"/>
+  <g fill="#192e55"><ellipse cx="220" cy="274" rx="8" ry="11"/><ellipse cx="283" cy="268" rx="8" ry="11"/></g>
+  <!-- A compact aircraft crossing the rabbit's cheek; not a theme-specific 3D model. -->
+  <g transform="translate(297 319) rotate(38)">
+    <path d="M0-63C-7-63-10-53-10-43V-13L-53 17V31L-10 14V41L-26 53V64L0 56L26 64V53L10 41V14L53 31V17L10-13V-43C10-53 7-63 0-63Z" fill="url(#plane)" stroke="#172f56" stroke-width="7" stroke-linejoin="round"/>
+  </g>
+  <g transform="translate(171 405)">
+    <rect width="30" height="17" rx="6" fill="#ff6678"/>
+    <rect x="47" width="30" height="17" rx="6" fill="#49ddb1"/>
+    <rect x="94" width="30" height="17" rx="6" fill="#f3d576"/>
+    <rect x="141" width="30" height="17" rx="6" fill="#69a8ff"/>
+  </g>
+</svg>

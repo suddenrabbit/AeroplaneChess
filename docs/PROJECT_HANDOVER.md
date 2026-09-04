@@ -1,4 +1,88 @@
-# 3D 飞行棋 · 项目总结与移交文档
+# RabbitPlaneChess · 主题系统交接（第五版）
+
+> 2026-09-04 · 当前实现。后附第四版原始记录，仅供查阅 3D 视觉设计与历史问题。
+
+## 1. 当前状态
+
+统一首页、3D 亚克力、2D 卡通均已实现。品牌、图标、manifest id/start_url、仓库名、Worker 名与域名部署配置保持稳定；首页及安装入口默认选主题。仍是静态 HTML/CSS/JS，无框架、后端或构建步骤，没有 Service Worker。
+
+2D 采用批准的奶油白棋盘与 SVG 动物：红兔 / 绿蛙 / 黄猫 / 蓝企鹅；每方四枚独立编号。首页与 2D 不导入 Three.js；两主题设置也不创建 3D 场景。3D 的原场景、光照、材质、太空、相机计算和飞机 hitbox 保留。
+
+## 2. 当前代码入口
+
+| 文件 | 职责 |
+| --- | --- |
+| public/index.html | 品牌元数据、首页/设置/对局/结果容器 |
+| public/js/app.js | 页面路由、设置、HUD、退出确认、动态主题加载 |
+| public/js/config.js | 原 URL 配置兼容和四个固定 seat 的独立设置 |
+| public/js/board.js | 原 PATH/HOMES/STARTS/BASE_ORIGIN/BASE_SLOTS 与 coord 查询 |
+| public/js/rules.js | 从原程序提取的 legalMoves、撞子预估、AI 及 threatAt；注入 state/random |
+| public/js/game.js | 状态初始化、阶段计划、提交、骰子/回合与完整名次 |
+| public/js/lifetime.js | 每局 AbortController、可取消 wait/tween、RAF/监听的统一生命周期 |
+| public/themes/catalog.js | 主题名称、文案、色板、按需 import |
+| public/themes/art.js | 原创 SVG 动物与同坐标棋盘绘制（首页预览也复用） |
+| public/themes/cartoon.js | SVG 角色布局、叠放、命中、高亮、跨越/撞子动画 |
+| public/themes/acrylic.js | 原 Three.js 表现，独立 mesh Map、拾取、相机与资源销毁 |
+| public/styles/app.css | 首页、设置、两主题 UI；桌面 1280×720 / 1440×810 |
+| public/previews/acrylic.png | 原 3D 实际画面静态预览 |
+| tests/ | 原实现快照对照、规则与浏览器验收；不随 public 发布 |
+
+`pc` 只保存 id/slot/st/prog，不持有 mesh。表现对象以固定 `seat:piece.id` 为键；玩家数组仅表示启用方及当前回合索引。
+
+## 3. 规则与动画边界
+
+`rulesFor(state, random)` 产出原合法动作与 AI 选择；`planMove` 将动作变成 travel / notice / hit / finish 阶段。阶段顺序：按骰行走 → 首落点撞子 → 可选逐格 +4 → 快进落点撞子 → 跨越至中点 → 中点撞子 → 跨越至出口 → 出口撞子 → 完成。
+
+`commitStage` 提交规则状态；渲染器的 `animate` 只显示这一阶段，不决定撞子、终点或回合。快速通道中点固定为对方归航道第四格，不由动画帧或时长推算是否撞子。首落点已撞回的棋子不会在后续阶段重复计算。
+
+规则保留：15×15；52 格；STARTS=[0,13,26,39]；pathColor=(i+2)%4；私人 50 归航入口不 +4；51 首个归航格；56 独立终点；超点先到终点再折返；18→30；出生格也可撞子；己方叠放可逐个选择。简单 AI 全合法动作随机，聪明 AI 精确完成优先，然后按原外部动作优先级和评分。
+
+连续第三次 6 仍正常行动，随后换手，不罚回基地。TEST MODE 只影响整局首次掷骰。已取得名次的玩家从后续回合跳过，避免其四枚完成后持续空掷；其余玩家继续竞争，最后一方自动补名次。
+
+## 4. 导航与生命周期
+
+- `/` 或 `/index.html` 无已知游戏参数：统一首页。
+- `?theme=acrylic` / `?theme=cartoon`：对应设置；选择修改以 query 保存。
+- 未指定 theme，但含 n/t/l/test/auto：按旧配置进入 3D。旧短 `n=2` 红黄解析仅兼容旧链接，新 UI 不限制颜色组合。
+- `#play` 标识对局路由，但状态仅在内存中。普通刷新、直接访问或前进到过期对局条目回设置；显式 auto=1 加载时开始新局。
+- 离开活跃对局、返回设置、重开及浏览器后退都先确认；取消恢复原历史位置，不取消本局。
+- 确认离开后先 abort，再释放表现资源。所有延迟、动画及异步 import 完成后检查本局 signal。旧任务只能结束，不能操作新局。
+- pagehide 清理场景，BFCache pageshow 回设置。beforeunload 使用浏览器默认提示。
+- Three.js 清理 geometry/material/texture、阴影、renderer、WebGL context；SVG 移除图层；所有监听绑定本局 signal，所有 RAF/timer 受 Lifetime 管理。
+
+相机保持固定 45° 摆正、底部居中。3D 拾取前更新 camera/mesh 的 matrixWorld，并保留每架飞机隐形球形 hitbox。2D 使用 SVG viewBox 与同组视觉/命中 transform，避免 canvas DPR 尺寸混淆；叠放以格内缩放偏移区分，仍有四枚独立编号按钮及键盘选择。
+
+## 5. 运行与验证
+
+```bash
+python3 -m http.server 8107 --bind 127.0.0.1 --directory public
+node --test tests/rules.test.mjs
+# 已安装 Playwright 的环境，或设置 PLAYWRIGHT_MODULE 指向现有安装
+node tests/browser.cjs
+node tests/browser-interactions.cjs
+```
+
+规则测试使用 Node.js 22.7+（建议 24）；浏览器测试默认 macOS Chrome，可通过 CHROME_PATH / TEST_BASE_URL 覆盖。网站运行不需要 Node/Playwright。
+
+当前结果：12 项规则测试通过。包括 2,000 个局面的原合法动作与 AI 对照、1,200 个合法动作的原异步执行器最终状态对照，以及真实取消旧 AI/骰子/移动等待。fixtures 是提取改造前的测试基线，不是第二份游戏实现，不对外发布。
+
+浏览器检查：首页、两设置页、两主题在 1280×720 与 1440×810；实际掷骰与棋子选择；返回首页取消/确认；普通刷新、前进后退、旧参数、无效主题、反复进入/重开/resize、3D 相机控制；DPR2 的 SVG 与 3D 缓冲区尺寸。两个真实表现器使用同一随机种子和四方混合 AI，完成一局并得到相同全部状态和名次（测试仅加速表现时长）。额外通过 3D 直接 raycast 点击、四枚叠放的独立键盘选择，以及两套表现器真实时长的 +4→穿越→中途撞子→出口动画检查。记录位于 docs/theme-validation/browser-results.json，截图同目录。
+
+## 6. 边界与维护提醒
+
+- 未 push、未发布；wrangler.jsonc 未改，仍部署 public。
+- 品牌图标未改。manifest 名称、id=/、start_url=/、scope=/ 保持，只将背景/主题色调整为统一首页浅色。
+- 没有存档、联网、音效或离线缓存；本轮重点桌面，未做移动端真机验收。
+- 当前主要在 Chrome 测试；Safari/Firefox、实际安装后独立窗口尚未实测。
+- 用户偏好依旧：基于实际截图验证 UI；先定位原因再修复；不擅自改变玩法与视角。
+
+---
+
+## 第四版原始移交记录（历史参考）
+
+以下保留上一轮未提交的原文。单 HTML、旧行号、主题尚未实现等描述只适用于第四版；当前结构与行为以本文件上方第五版章节和实际模块代码为准。
+
+# RabbitPlaneChess · 项目总结与移交文档
 
 > 浏览器端 Three.js 单机对战游戏 · 第四版（固定 45° 摆正视角 + 太空深色背景）
 > 单文件 `index.html` · three.js 0.160 本地化 · 零构建步骤 · 四色独立启用 · 人类 + AI 混战
@@ -7,7 +91,15 @@
 
 ## 1. 项目概览
 
-一个纯前端的 3D 飞行棋（Ludo / Aeroplane Chess）游戏。整个游戏是**一个 HTML 文件**，内嵌全部 CSS 与 JavaScript，无构建工具、无框架、无后端。Three.js 已下载到 `public/vendor/`，可由任意静态服务器或 Cloudflare 直接托管。
+RabbitPlaneChess 是一个纯前端飞行棋游戏，品牌不限定视觉风格；当前画面采用 Three.js，主题系统尚未实现。游戏主程序是**一个 HTML 文件**，内嵌全部 CSS 与 JavaScript，无构建工具、无框架、无后端。Three.js 已下载到 `public/vendor/`，可由任意静态服务器或 Cloudflare 直接托管。
+
+### 品牌与安装元数据（2026-09-04）
+
+- 对外名称统一为 `RabbitPlaneChess`，不再使用“3D 飞行棋”作为产品名。技术说明里的 3D 仍指现有实现。
+- `public/manifest.webmanifest` 配置统一名称、根路径应用标识及 `standalone` 显示模式。
+- `public/icons/icon.svg` 是白兔＋飞机＋四色棋格的矢量源图；PNG 包含 32、180、192、512 尺寸及独立 maskable 文件，导出工具为 `scripts/export-icons.cjs`（开发时依赖 sharp）。
+- HTML 引用 manifest、favicon、Apple Touch Icon；没有添加 Service Worker 或离线缓存。
+- 保留仓库名 `AeroplaneChess` 和 Worker 名 `aeroplanechess`，避免影响已有域名 `fxq.srabbitwork.site`。
 
 | 项 | 值 |
 |---|---|
@@ -223,7 +315,7 @@ index.html?t=h,a,a,a&test=1            TEST MODE 快速验证
 复制以下 Markdown 全文，粘贴给新的 AI 会话即可无缝继续开发。
 
 ````markdown
-你接手一个已开发完成、可正常游玩的浏览器 3D 飞行棋项目。请先读完下面的上下文，再动手。
+你接手 RabbitPlaneChess，一个可正常游玩的浏览器飞行棋项目，目前使用 Three.js 渲染但品牌不限定 3D 风格。请先读完下面的上下文，再动手。
 
 ## 一、项目位置与运行方式
 - 项目根目录：/Users/zm/Documents/GitHub/AeroplaneChess/
@@ -293,5 +385,5 @@ AI（约 1242-1284 行）
 
 ---
 
-*3D 飞行棋 · 项目总结与移交文档 · 第四版 · 生成于 2026-09-01*
+*RabbitPlaneChess · 项目总结与移交文档 · 第四版，品牌及安装元数据更新于 2026-09-04*
 *主文件：`public/index.html` · three.js 0.160 本地化*

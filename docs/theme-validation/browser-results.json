@@ -1,0 +1,148 @@
+{
+  "errors": [],
+  "bad": [],
+  "completedGame": {
+    "players": [
+      {
+        "seat": 0,
+        "type": "ai",
+        "level": 2,
+        "pieces": [
+          {
+            "id": 0,
+            "slot": 0,
+            "st": "done",
+            "prog": 56
+          },
+          {
+            "id": 1,
+            "slot": 1,
+            "st": "done",
+            "prog": 56
+          },
+          {
+            "id": 2,
+            "slot": 2,
+            "st": "done",
+            "prog": 56
+          },
+          {
+            "id": 3,
+            "slot": 3,
+            "st": "done",
+            "prog": 56
+          }
+        ],
+        "done": 4,
+        "rank": 1
+      },
+      {
+        "seat": 1,
+        "type": "ai",
+        "level": 1,
+        "pieces": [
+          {
+            "id": 0,
+            "slot": 0,
+            "st": "done",
+            "prog": 56
+          },
+          {
+            "id": 1,
+            "slot": 1,
+            "st": "done",
+            "prog": 56
+          },
+          {
+            "id": 2,
+            "slot": 2,
+            "st": "done",
+            "prog": 56
+          },
+          {
+            "id": 3,
+            "slot": 3,
+            "st": "done",
+            "prog": 56
+          }
+        ],
+        "done": 4,
+        "rank": 2
+      },
+      {
+        "seat": 2,
+        "type": "ai",
+        "level": 2,
+        "pieces": [
+          {
+            "id": 0,
+            "slot": 0,
+            "st": "done",
+            "prog": 56
+          },
+          {
+            "id": 1,
+            "slot": 1,
+            "st": "done",
+            "prog": 56
+          },
+          {
+            "id": 2,
+            "slot": 2,
+            "st": "done",
+            "prog": 56
+          },
+          {
+            "id": 3,
+            "slot": 3,
+            "st": "done",
+            "prog": 56
+          }
+        ],
+        "done": 4,
+        "rank": 3
+      },
+      {
+        "seat": 3,
+        "type": "ai",
+        "level": 2,
+        "pieces": [
+          {
+            "id": 0,
+            "slot": 0,
+            "st": "done",
+            "prog": 56
+          },
+          {
+            "id": 1,
+            "slot": 1,
+            "st": "done",
+            "prog": 56
+          },
+          {
+            "id": 2,
+            "slot": 2,
+            "st": "done",
+            "prog": 56
+          },
+          {
+            "id": 3,
+            "slot": 3,
+            "st": "track",
+            "prog": 44
+          }
+        ],
+        "done": 3,
+        "rank": 4
+      }
+    ],
+    "turn": 2,
+    "dice": 2,
+    "sixStreak": 0,
+    "finished": 4,
+    "phase": "over",
+    "pickable": [],
+    "testOpeningRoll": false
+  },
+  "checks": "two viewport sizes; routes; real input; cleanup; repeat entry; DPR2; complete seeded game in both renderers"
+}
