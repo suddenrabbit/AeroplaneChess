@@ -54,7 +54,8 @@ function diceSVG(value){
 }
 function update(){
   if(!game)return;const g=game.state,t=themes[themeId],p=g.players[g.turn];
-  $('players').innerHTML=g.players.map((player,i)=>`<div class="player ${i===g.turn&&g.phase!=='over'?'current':''}" style="--seat:${t.colors[player.seat]}">${icon(player.seat)}<div><strong>${t.names[player.seat]}</strong><small>${player.type==='human'?'人类':player.level===1?'简单电脑':'聪明电脑'}${player.rank?' · 第 '+player.rank+' 名':''}</small><div class="progress">抵达 ${player.done}/4</div><div class="state-pips">${player.pieces.map(pc=>`<i class="${pc.st}" title="${t.piece} ${pc.id+1}：${pc.st==='base'?t.base:pc.st==='home'?t.lane:pc.st==='done'?'已抵达':'共享航道'}"></i>`).join('')}</div></div></div>`).join('');
+  $('players').innerHTML=g.players.map((player,i)=>`<div class="player ${i===g.turn&&g.phase!=='over'?'current':''}" style="--seat:${t.colors[player.seat]};--seat-dark:${t.darkColors[player.seat]}">${icon(player.seat)}<div><strong>${t.names[player.seat]}</strong><small>${player.type==='human'?'人类':player.level===1?'简单电脑':'聪明电脑'}${player.rank?' · 第 '+player.rank+' 名':''}</small><div class="progress">抵达 ${player.done}/4</div><div class="state-pips">${player.pieces.map(pc=>`<i class="${pc.st}" title="${t.piece} ${pc.id+1}：${pc.st==='base'?t.base:pc.st==='home'?t.lane:pc.st==='done'?'已抵达':'共享航道'}"></i>`).join('')}</div></div></div>`).join('');
+  $('controls').style.setProperty('--turn-seat',t.colors[p.seat]);
   $('turnType').textContent=p.type==='human'?'轮到你了':p.level===1?'简单电脑':'聪明电脑';$('turnText').textContent=t.names[p.seat]+'的回合';
   $('rollButton').disabled=g.phase!=='idle'||p.type!=='human';
   $('diceFace').classList.toggle('rolling',g.phase==='rolling');
@@ -83,6 +84,12 @@ async function start({auto=false,replace=false}={}){
   } catch(e){if(e.name==='AbortError')return;console.error(e);stop();themeId=id;setURL(urlForSetup(),true);showSetup();$('setupCount').textContent='棋盘加载失败，请重试。';$('setupCount').classList.add('error');}
 }
 $('startButton').onclick=()=>start();$('rollButton').onclick=()=>{if(game)game.run(game.roll());};
+addEventListener('keydown',e=>{
+  if(e.key!=='Enter'||e.repeat||document.body.dataset.page!=='game'||!game)return;
+  const active=e.target instanceof Element?e.target.closest('button,a,input,select,textarea,[contenteditable="true"],[role="button"]'):null;
+  if(active||game.current().type!=='human'||game.state.phase!=='idle')return;
+  e.preventDefault();game.run(game.roll());
+});
 for(const id of ['homeButton','resultHome'])$(id).onclick=navigateHome;
 $('brandHome').onclick=e=>{e.preventDefault();navigateHome();};
 for(const id of ['backSetup','resultSetup','cancelLoad'])$(id).onclick=navigateSetup;

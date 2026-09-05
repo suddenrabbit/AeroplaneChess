@@ -28,13 +28,13 @@ export function mount({host,state,life,choose}) {
   function sync(){
     const stacks=new Map();
     state.players.forEach(p=>p.pieces.forEach(pc=>{
-      const it=items.get(key(p.seat,pc.id));it.g.style.display=pc.st==='done'?'none':'';it.g.classList.toggle('in-base',pc.st==='base');it.g.querySelector('.animal').setAttribute('transform',`scale(${pc.st==='base'?.8:.57})`);
+      const it=items.get(key(p.seat,pc.id));it.g.style.display=pc.st==='done'?'none':'';it.g.classList.toggle('in-base',pc.st==='base');it.g.querySelector('.animal').setAttribute('transform',`scale(${pc.st==='base'?.9:.68})`);
       const [x,y]=point(coord(p.seat,pc.prog,pc.slot));place(it,x,y);
       if(pc.st==='home'||pc.st==='track'){const k=x+','+y;if(!stacks.has(k))stacks.set(k,[]);stacks.get(k).push(it);}
     }));
     stacks.forEach(arr=>{if(arr.length>1)arr.forEach((it,i)=>{
       const offsets=arr.length===2?[[-8,0],[8,0]]:[[-8,-8],[8,-8],[-8,8],[8,8]];
-      const [dx,dy]=offsets[i];place(it,it.x+dx,it.y+dy,.61);
+      const [dx,dy]=offsets[i];place(it,it.x+dx,it.y+dy,arr.length===2?.78:.68);
     });});
   }
   function choices(moves){
@@ -48,7 +48,7 @@ export function mount({host,state,life,choose}) {
     await life.tween(cross?380:style==='hop'?125:420,k=>{
       const e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;place(it,fx+(tx-fx)*e,fy+(ty-fy)*e);
       const height=cross?(style==='crossUp'?Math.sin(e*Math.PI/2):Math.cos(e*Math.PI/2))*23:Math.sin(e*Math.PI)*8;
-      face.setAttribute('transform',`translate(0 ${-height}) scale(.57)`);
+      face.setAttribute('transform',`translate(0 ${-height}) scale(.68)`);
     });
   }
   async function animate(stage){

@@ -1,10 +1,10 @@
 export const themes = {
   acrylic: {name:'3D 亚克力',subtitle:'穿过星海，驾驶小飞机在透明棋盘上相遇。',
-    names:['红方','绿方','黄方','蓝方'],colors:['#ef4444','#22c55e','#e3cc6d','#3b82f6'],
+    names:['红方','绿方','黄方','蓝方'],colors:['#ef4444','#22c55e','#e3cc6d','#3b82f6'],darkColors:['#b91c1c','#15803d','#a88932','#1d4ed8'],
     piece:'飞机',unit:'架',base:'机库',launch:'起飞',lane:'归航道',hit:'击落',flight:'快速穿越',
     load:()=>import('./acrylic.js')},
   cartoon: {name:'2D 卡通',subtitle:'带上四只小伙伴，来一场轻快的草地竞走。',
-    names:['红方 · 小兔','绿方 · 青蛙','黄方 · 小猫','蓝方 · 企鹅'],colors:['#e57772','#66ae87','#e8c451','#74a5d3'],
+    names:['红方 · 小兔','绿方 · 青蛙','黄方 · 小猫','蓝方 · 企鹅'],colors:['#e57772','#66ae87','#e8c451','#74a5d3'],darkColors:['#b64f4d','#3f8061','#a98220','#477aa8'],
     piece:'小伙伴',unit:'只',base:'营地',launch:'出发',lane:'回家小路',hit:'送回营地',flight:'快速跨越',
     load:()=>import('./cartoon.js')}
 };
